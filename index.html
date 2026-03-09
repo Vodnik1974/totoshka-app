@@ -378,6 +378,8 @@ const TEXTS = {
     ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'балл',
     outcome_draw:'Ничья', team_neither:'Никакая', pred_nobody:'Никто', pred_no_first_goal:'Не будет первого гола', pred_no_second_goal:'Не будет второго гола',
     ui_quick_zero_one:'Быстрый 0:0', ui_quick_zero_all:'0:0 на все открытые',
+    ui_quick_zero_one_confirm:'Применить быстрый прогноз 0:0 к этому матчу? Текущий прогноз будет перезаписан.',
+    ui_quick_zero_all_confirm:'Применить 0:0 ко всем открытым матчам? Текущие прогнозы на них будут перезаписаны.',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧКОВ',
     ui_stat_pts:'Очков', ui_stat_rank:'Место', ui_stat_preds:'Прогнозов',
     ui_stat_avg:'Сред. балл', ui_stat_acc:'Точность', ui_stat_streak:'Серия',
@@ -411,6 +413,8 @@ const TEXTS = {
     ui_your_pred:'Your prediction', ui_result:'Result', ui_point:'pt',
     outcome_draw:'Draw', team_neither:'Neither', pred_nobody:'Nobody', pred_no_first_goal:'No first goal', pred_no_second_goal:'No second goal',
     ui_quick_zero_one:'Quick 0:0', ui_quick_zero_all:'0:0 for all open',
+    ui_quick_zero_one_confirm:'Apply quick 0:0 to this match? Existing prediction will be overwritten.',
+    ui_quick_zero_all_confirm:'Apply 0:0 to all open matches? Existing predictions for them will be overwritten.',
     ui_lb_hdr:'RANKINGS', ui_pts:'PTS',
     ui_stat_pts:'Points', ui_stat_rank:'Rank', ui_stat_preds:'Predictions',
     ui_stat_avg:'Avg score', ui_stat_acc:'Accuracy', ui_stat_streak:'Streak',
@@ -444,6 +448,8 @@ const TEXTS = {
     ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'бал',
     outcome_draw:'Нічия', team_neither:'Ні одна', pred_nobody:'Ніхто', pred_no_first_goal:'Не буде першого гола', pred_no_second_goal:'Не буде другого гола',
     ui_quick_zero_one:'Швидкий 0:0', ui_quick_zero_all:'0:0 на всі відкриті',
+    ui_quick_zero_one_confirm:'Застосувати швидкий прогноз 0:0 до цього матчу? Поточний прогноз буде перезаписано.',
+    ui_quick_zero_all_confirm:'Застосувати 0:0 до всіх відкритих матчів? Поточні прогнози на них будуть перезаписані.',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧОК',
     ui_stat_pts:'Очків', ui_stat_rank:'Місце', ui_stat_preds:'Прогнозів',
     ui_stat_avg:'Сер. бал', ui_stat_acc:'Точність', ui_stat_streak:'Серія',
@@ -593,6 +599,7 @@ async function loadMatches() {
 }
 
 async function quickZeroMatch(matchId) {
+  if (!window.confirm(t('ui_quick_zero_one_confirm'))) return;
   const payload = { ...buildZeroAnswers(), is_random: 0 };
   try {
     await apiPost(`/api/predictions/${matchId}`, payload);
@@ -606,6 +613,7 @@ async function quickZeroMatch(matchId) {
 }
 
 async function quickZeroAllOpen() {
+  if (!window.confirm(t('ui_quick_zero_all_confirm'))) return;
   try {
     const matches = matchesCache || await apiGet('/api/matches');
     const openUnpred = matches.filter(m => m.open && !m.predicted);
