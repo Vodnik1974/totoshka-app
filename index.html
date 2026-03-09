@@ -63,6 +63,26 @@
     text-transform: uppercase; padding: 4px 16px 8px;
   }
 
+  .quick-bar {
+    padding: 0 16px 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .quick-btn {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: none;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.06);
+    color: var(--tg-text);
+    cursor: pointer;
+  }
+  .quick-btn:active {
+    background: var(--green);
+  }
+
   .match-card {
     margin: 0 12px 10px; background: var(--card-bg);
     border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius);
@@ -226,6 +246,7 @@
     <span class="badge" id="hdr-badge"></span>
   </div>
   <div class="section-label" id="lbl-upcoming"></div>
+  <div id="matches-actions" class="quick-bar"></div>
   <div id="matches-list"><div class="spinner"></div></div>
   <div style="height:8px"></div>
 </div>
@@ -355,6 +376,8 @@ const TEXTS = {
     ui_view_participants:'Прогнозы участников', ui_mp_title:'Прогнозы участников',
     ui_match_finished:'Матч завершён', ui_view_result:'Смотреть результат и очки', ui_pts_short:'очк.', ui_pred_detail_title:'Прогноз и результат',
     ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'балл',
+    outcome_draw:'Ничья', team_neither:'Никакая', pred_nobody:'Никто', pred_no_first_goal:'Не будет первого гола', pred_no_second_goal:'Не будет второго гола',
+    ui_quick_zero_one:'Быстрый 0:0', ui_quick_zero_all:'0:0 на все открытые',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧКОВ',
     ui_stat_pts:'Очков', ui_stat_rank:'Место', ui_stat_preds:'Прогнозов',
     ui_stat_avg:'Сред. балл', ui_stat_acc:'Точность', ui_stat_streak:'Серия',
@@ -386,6 +409,8 @@ const TEXTS = {
     ui_view_participants:'Participants\' predictions', ui_mp_title:'Participants\' predictions',
     ui_match_finished:'Match finished', ui_view_result:'View result & points', ui_pts_short:'pts', ui_pred_detail_title:'Prediction & result',
     ui_your_pred:'Your prediction', ui_result:'Result', ui_point:'pt',
+    outcome_draw:'Draw', team_neither:'Neither', pred_nobody:'Nobody', pred_no_first_goal:'No first goal', pred_no_second_goal:'No second goal',
+    ui_quick_zero_one:'Quick 0:0', ui_quick_zero_all:'0:0 for all open',
     ui_lb_hdr:'RANKINGS', ui_pts:'PTS',
     ui_stat_pts:'Points', ui_stat_rank:'Rank', ui_stat_preds:'Predictions',
     ui_stat_avg:'Avg score', ui_stat_acc:'Accuracy', ui_stat_streak:'Streak',
@@ -417,6 +442,8 @@ const TEXTS = {
     ui_view_participants:'Прогнози учасників', ui_mp_title:'Прогнози учасників',
     ui_match_finished:'Матч завершено', ui_view_result:'Переглянути результат і очки', ui_pts_short:'очк.', ui_pred_detail_title:'Прогноз і результат',
     ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'бал',
+    outcome_draw:'Нічия', team_neither:'Ні одна', pred_nobody:'Ніхто', pred_no_first_goal:'Не буде першого гола', pred_no_second_goal:'Не буде другого гола',
+    ui_quick_zero_one:'Швидкий 0:0', ui_quick_zero_all:'0:0 на всі відкриті',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧОК',
     ui_stat_pts:'Очків', ui_stat_rank:'Місце', ui_stat_preds:'Прогнозів',
     ui_stat_avg:'Сер. бал', ui_stat_acc:'Точність', ui_stat_streak:'Серія',
@@ -481,6 +508,28 @@ async function apiPost(path, body) {
   return res.json();
 }
 
+function buildZeroAnswers() {
+  return {
+    q1: '0:0',
+    q2: t('outcome_draw'),
+    q3: '0',
+    q4: '0:0',
+    q5: t('outcome_draw'),
+    q6: '0',
+    q7: '0:0',
+    q8: t('outcome_draw'),
+    q9: '0',
+    q10: '0',
+    q11: '0',
+    q12: t('team_neither'),
+    q13: t('pred_nobody'),
+    q14: t('pred_no_first_goal'),
+    q15: t('pred_nobody'),
+    q16: t('pred_no_second_goal'),
+    q17: t('o_no'),
+  };
+}
+
 // ══════════════════════════════════════════════════════════
 // Data cache
 // ══════════════════════════════════════════════════════════
@@ -495,6 +544,13 @@ async function loadMatches() {
   try {
     const matches = await apiGet('/api/matches');
     matchesCache = matches;
+    const actions = document.getElementById('matches-actions');
+    if (actions) {
+      const openUnpred = matches.filter(m => m.open && !m.predicted);
+      actions.innerHTML = openUnpred.length
+        ? `<button class="quick-btn" onclick="quickZeroAllOpen()">${t('ui_quick_zero_all')}</button>`
+        : '';
+    }
     if (!matches.length) {
       container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
       return;
@@ -512,6 +568,9 @@ async function loadMatches() {
         if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
       }
       const closedClick = !m.open ? `openMatchPreds(${m.match_id})` : '';
+      const quickBtn = m.open && !m.predicted
+        ? `<button class="quick-btn" onclick="event.stopPropagation(); quickZeroMatch(${m.match_id})">${t('ui_quick_zero_one')}</button>`
+        : '';
       return `
         <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : closedClick}">
           <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
@@ -523,12 +582,48 @@ async function loadMatches() {
           <div class="match-footer">
             <div class="pred-status ${statusCls}">${statusText}</div>
             ${!m.open ? `<div class="deadline-text">${t('ui_view_participants')}</div>` : ''}
+            ${quickBtn}
             ${deadlineHtml}
           </div>
         </div>`;
     }).join('');
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadMatches()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+async function quickZeroMatch(matchId) {
+  const payload = { ...buildZeroAnswers(), is_random: 0 };
+  try {
+    await apiPost(`/api/predictions/${matchId}`, payload);
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    await loadMatches();
+    if (loadedScreens.my) loadMyPredictions();
+  } catch (e) {
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+    alert(e.message || t('ui_error'));
+  }
+}
+
+async function quickZeroAllOpen() {
+  try {
+    const matches = matchesCache || await apiGet('/api/matches');
+    const openUnpred = matches.filter(m => m.open && !m.predicted);
+    if (!openUnpred.length) return;
+    const payload = { ...buildZeroAnswers(), is_random: 0 };
+    for (const m of openUnpred) {
+      try {
+        await apiPost(`/api/predictions/${m.match_id}`, payload);
+      } catch (_) {
+        // пропускаем ошибки по отдельным матчам
+      }
+    }
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    await loadMatches();
+    if (loadedScreens.my) loadMyPredictions();
+  } catch (e) {
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+    alert(e.message || t('ui_error'));
   }
 }
 
