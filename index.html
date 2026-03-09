@@ -1173,12 +1173,19 @@ if (tg) {
 }
 
 // ══════════════════════════════════════════════════════════
-// BOOT
+// BOOT — язык из настроек бота (/api/me), затем показ приложения
 // ══════════════════════════════════════════════════════════
-LANG = detectLang();
-document.documentElement.lang = LANG;
-applyStaticTranslations();
-showScreen('matches');
+(async function initApp() {
+  try {
+    const r = await apiGet('/api/me');
+    if (r && r.lang && TEXTS[r.lang]) LANG = r.lang;
+  } catch (_) {
+    LANG = detectLang();
+  }
+  document.documentElement.lang = LANG;
+  applyStaticTranslations();
+  showScreen('matches');
+})();
 </script>
 </body>
 </html>
