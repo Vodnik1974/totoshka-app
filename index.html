@@ -167,6 +167,11 @@
   }
   .opt-btn:active  { transform: scale(0.96); }
   .opt-btn.selected { background: rgba(45,189,110,0.15); border-color: var(--green); color: var(--green); font-weight: 700; }
+  .opt-select {
+    padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.15);
+    background: var(--tg-secondary); color: var(--tg-text); font-size: 14px; font-family: inherit;
+    cursor: pointer; min-height: 44px;
+  }
 
   .score-picker  { display: flex; align-items: center; justify-content: center; gap: 16px; }
   .score-spinner { display: flex; flex-direction: column; align-items: center; }
@@ -388,6 +393,8 @@ const TEXTS = {
     ui_pred_saved:'✅ Прогноз сохранён', ui_pred_missing:'⚠️ Нет прогноза', ui_pred_closed:'🔒 Закрыт',
     ui_deadline:'через {t}',
     ui_q_label:'Вопрос {n} из {total}', ui_q_back:'← Назад', ui_q_next:'Далее →', ui_q_save:'💾 Сохранить',
+    ui_min_start_15_hint:'Выберите начало 15-минутного промежутка (диапазон будет вычислен автоматически).',
+    ui_min_start_10_hint:'Выберите начало 10-минутного промежутка (диапазон будет вычислен автоматически).',
     ui_success_title:'Прогноз сохранён!', ui_success_sub:'Удачи на матче!',
     ui_loading:'Загрузка...', ui_error:'Ошибка загрузки', ui_retry:'Повторить',
     ui_no_score_change:'Не будет первого гола', ui_no_score_change2:'Не будет второго гола',
@@ -423,6 +430,8 @@ const TEXTS = {
     ui_pred_saved:'✅ Prediction saved', ui_pred_missing:'⚠️ No prediction', ui_pred_closed:'🔒 Closed',
     ui_deadline:'in {t}',
     ui_q_label:'Question {n} of {total}', ui_q_back:'← Back', ui_q_next:'Next →', ui_q_save:'💾 Save',
+    ui_min_start_15_hint:'Choose the start of the 15-minute interval (range is computed automatically).',
+    ui_min_start_10_hint:'Choose the start of the 10-minute interval (range is computed automatically).',
     ui_success_title:'Prediction saved!', ui_success_sub:'Good luck with the match!',
     ui_loading:'Loading...', ui_error:'Loading error', ui_retry:'Retry',
     ui_no_score_change:'No first goal', ui_no_score_change2:'No second goal',
@@ -458,6 +467,8 @@ const TEXTS = {
     ui_pred_saved:'✅ Прогноз збережено', ui_pred_missing:'⚠️ Немає прогнозу', ui_pred_closed:'🔒 Закрито',
     ui_deadline:'через {t}',
     ui_q_label:'Питання {n} з {total}', ui_q_back:'← Назад', ui_q_next:'Далі →', ui_q_save:'💾 Зберегти',
+    ui_min_start_15_hint:'Оберіть початок 15-хвилинного проміжку (діапазон обчислиться автоматично).',
+    ui_min_start_10_hint:'Оберіть початок 10-хвилинного проміжку (діапазон обчислиться автоматично).',
     ui_success_title:'Прогноз збережено!', ui_success_sub:'Удачі на матчі!',
     ui_loading:'Завантаження...', ui_error:'Помилка завантаження', ui_retry:'Повторити',
     ui_no_score_change:'Не буде першого гола', ui_no_score_change2:'Не буде другого гола',
@@ -655,11 +666,14 @@ let currentSquads = { squad_1: [], squad_2: [] };
 let questions = [], answers = {}, scoreVals = {}, currentQ = 0;
 
 function buildQuestions(t1, t2) {
-  const mins = ['1–15','16–30','31–45','46–60','61–75','76–90'];
   const s1 = currentSquads.squad_1 || [];
   const s2 = currentSquads.squad_2 || [];
   const allScorers = [...s1, ...s2, t('o_other')];
   const scorerCols = allScorers.length > 6 ? 3 : 2;
+  // Q14: 15-минутный промежуток (начало 0..76 → диапазон start..start+14)
+  // Q16: 10-минутный промежуток (начало 0..81 → диапазон start..start+9)
+  const minuteStarts15 = Array.from({ length: 77 }, (_, i) => i);
+  const minuteStarts10 = Array.from({ length: 82 }, (_, i) => i);
 
   return [
     { key:'q1',  text: t('q_ht_score'),               type:'score' },
@@ -675,9 +689,9 @@ function buildQuestions(t1, t2) {
     { key:'q11', text: t('q_goals_t2',{t2}),          type:'opts', opts:['0','1','2','3','4','5','6','7','8','9','10'], cols:4 },
     { key:'q12', text: t('q_first_team'),             type:'opts', opts:[t1, t('o_nobody'), t2] },
     { key:'q13', text: t('q_scorer1'),                type:'opts', opts:[...allScorers, t('o_no_first_goal')], cols:scorerCols },
-    { key:'q14', text: t('q_min1'),                   type:'opts', opts:[...mins, t('o_no_first_goal')], cols:3 },
+    { key:'q14', text: t('q_min1'),                   type:'minute_start_15', starts: minuteStarts15, noGoalLabel: t('o_no_first_goal') },
     { key:'q15', text: t('q_scorer2'),                type:'opts', opts:[...allScorers, t('o_no_second_goal')], cols:scorerCols },
-    { key:'q16', text: t('q_min2'),                   type:'opts', opts:[...mins, t('o_no_second_goal')], cols:3 },
+    { key:'q16', text: t('q_min2'),                   type:'minute_start_10', starts: minuteStarts10, noGoalLabel: t('o_no_second_goal') },
     { key:'q17', text: t('q_penalty'),                type:'opts', opts:[t('o_yes'), t('o_no')] },
   ];
 }
@@ -724,6 +738,8 @@ async function openPredict(matchId) {
           if (Number.isNaN(g2)) g2 = 0;
           scoreVals[i] = [g1, g2];
           answers[i] = `${g1}:${g2}`;
+        } else if (questions[i].type === 'minute_start_15' || questions[i].type === 'minute_start_10') {
+          answers[i] = String(raw);
         } else {
           answers[i] = String(raw);
         }
@@ -772,6 +788,38 @@ function renderQuestion() {
         </div>
       </div>`;
     if (!answers[currentQ]) answers[currentQ] = '0:0';
+  } else if (q.type === 'minute_start_15' || q.type === 'minute_start_10') {
+    const is15 = q.type === 'minute_start_15';
+    const span = is15 ? 14 : 9;
+    const cur = (answers[currentQ] || '').trim();
+    let selectedStart = '';
+    if (cur && cur.indexOf('-') !== -1) {
+      const parts = cur.split('-');
+      if (parts.length >= 2 && /^\d+$/.test(parts[0].trim())) selectedStart = parts[0].trim();
+    }
+    const optsHtml = q.starts.map(n => {
+      const end = Math.min(n + span, 90);
+      const label = n + ' (' + n + '–' + end + ')';
+      return `<option value="${n}" ${selectedStart === String(n) ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+    area.innerHTML = `
+      <div class="question-card">
+        <div class="q-num">Q${currentQ+1}</div>
+        <div class="q-text">${q.text}</div>
+        <p class="q-hint" style="font-size:12px;color:var(--tg-hint);margin:8px 0 12px">${is15 ? t('ui_min_start_15_hint') : t('ui_min_start_10_hint')}</p>
+        <div class="options-grid cols2">
+          <select class="opt-select" id="min-start-${currentQ}" onchange="onMinuteStartChange(${currentQ},${is15?14:9})">
+            <option value="">—</option>
+            ${optsHtml}
+          </select>
+          <button type="button" class="opt-btn ${!selectedStart && (cur === q.noGoalLabel || cur.toLowerCase().indexOf('не будет') !== -1) ? 'selected' : ''}"
+                  onclick="selectMinuteNoGoal(${currentQ},this,'${q.noGoalLabel.replace(/'/g, "\\'")}')">${q.noGoalLabel}</button>
+        </div>
+      </div>`;
+    if (selectedStart !== '') {
+      const n = parseInt(selectedStart, 10);
+      answers[currentQ] = n + '-' + Math.min(n + span, 90);
+    }
   } else {
     const cols = q.cols || (q.opts.length <= 3 ? q.opts.length : 2);
     const cls  = cols >= 3 ? `cols${cols}` : 'cols2';
@@ -808,6 +856,33 @@ function selectOpt(qi, btn) {
   btn.closest('.options-grid').querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   answers[qi] = btn.textContent.trim();
+  refreshProgress();
+  window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+}
+
+function onMinuteStartChange(qi, span) {
+  const sel = document.getElementById('min-start-' + qi);
+  const start = sel ? parseInt(sel.value, 10) : NaN;
+  if (!Number.isNaN(start)) {
+    answers[qi] = start + '-' + Math.min(start + span, 90);
+    const grid = sel.closest('.options-grid');
+    if (grid) grid.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+  } else {
+    answers[qi] = questions[qi].noGoalLabel;
+  }
+  refreshProgress();
+  window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+}
+
+function selectMinuteNoGoal(qi, btn, noGoalLabel) {
+  const grid = btn.closest('.options-grid');
+  if (grid) {
+    grid.querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+  const sel = document.getElementById('min-start-' + qi);
+  if (sel) sel.value = '';
+  answers[qi] = noGoalLabel;
   refreshProgress();
   window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
 }
