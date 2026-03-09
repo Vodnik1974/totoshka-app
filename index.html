@@ -273,6 +273,17 @@
   <div style="height:8px"></div>
 </div>
 
+<!-- ══ SCREEN: PREDICTION DETAIL (мой прогноз + результат + очки) ═══ -->
+<div id="screen-pred-detail" class="screen">
+  <div class="header">
+    <div class="header-title" id="pd-hdr-title"></div>
+  </div>
+  <div id="pred-detail-header" class="pred-match-header"></div>
+  <div id="pred-detail-total" class="pred-progress" style="padding:12px 16px"></div>
+  <div id="pred-detail-list"></div>
+  <div style="height:8px"></div>
+</div>
+
 <!-- ══ SCREEN: LEADERBOARD ═══════════════════════════════ -->
 <div id="screen-leaderboard" class="screen">
   <div class="header">
@@ -342,6 +353,8 @@ const TEXTS = {
     ui_nav_matches:'Матчи', ui_nav_predict:'Мои прогнозы', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профиль',
     ui_my_title:'Мои прогнозы', ui_my_lbl:'Ваши сохранённые прогнозы',
     ui_view_participants:'Прогнозы участников', ui_mp_title:'Прогнозы участников',
+    ui_match_finished:'Матч завершён', ui_view_result:'Смотреть результат и очки', ui_pts_short:'очк.', ui_pred_detail_title:'Прогноз и результат',
+    ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'балл',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧКОВ',
     ui_stat_pts:'Очков', ui_stat_rank:'Место', ui_stat_preds:'Прогнозов',
     ui_stat_avg:'Сред. балл', ui_stat_acc:'Точность', ui_stat_streak:'Серия',
@@ -371,6 +384,8 @@ const TEXTS = {
     ui_nav_matches:'Matches', ui_nav_predict:'My predictions', ui_nav_lb:'Rankings', ui_nav_profile:'Profile',
     ui_my_title:'My predictions', ui_my_lbl:'Your saved predictions',
     ui_view_participants:'Participants\' predictions', ui_mp_title:'Participants\' predictions',
+    ui_match_finished:'Match finished', ui_view_result:'View result & points', ui_pts_short:'pts', ui_pred_detail_title:'Prediction & result',
+    ui_your_pred:'Your prediction', ui_result:'Result', ui_point:'pt',
     ui_lb_hdr:'RANKINGS', ui_pts:'PTS',
     ui_stat_pts:'Points', ui_stat_rank:'Rank', ui_stat_preds:'Predictions',
     ui_stat_avg:'Avg score', ui_stat_acc:'Accuracy', ui_stat_streak:'Streak',
@@ -400,6 +415,8 @@ const TEXTS = {
     ui_nav_matches:'Матчі', ui_nav_predict:'Мої прогнози', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профіль',
     ui_my_title:'Мої прогнози', ui_my_lbl:'Ваші збережені прогнози',
     ui_view_participants:'Прогнози учасників', ui_mp_title:'Прогнози учасників',
+    ui_match_finished:'Матч завершено', ui_view_result:'Переглянути результат і очки', ui_pts_short:'очк.', ui_pred_detail_title:'Прогноз і результат',
+    ui_your_pred:'Ваш прогноз', ui_result:'Результат', ui_point:'бал',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧОК',
     ui_stat_pts:'Очків', ui_stat_rank:'Місце', ui_stat_preds:'Прогнозів',
     ui_stat_avg:'Сер. бал', ui_stat_acc:'Точність', ui_stat_streak:'Серія',
@@ -732,10 +749,10 @@ async function loadMyPredictions() {
     container.innerHTML = items.map(m => {
       const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
       const cls = m.is_finished ? 'closed' : (m.open ? '' : 'closed');
-      const statusText = m.is_finished ? t('ui_pred_closed') : (m.open ? t('ui_pred_missing') : t('ui_pred_closed'));
-      const viewPreds = !m.open ? `<div class="deadline-text" style="margin-top:4px">${t('ui_view_participants')}</div>` : '';
+      const statusText = m.open ? t('ui_pred_saved') : (m.is_finished ? t('ui_match_finished') : t('ui_pred_closed'));
+      const action = m.open ? `openPredict(${m.match_id})` : `openPredictionDetail(${m.match_id})`;
       return `
-        <div class="match-card ${cls}" onclick="${!m.open ? `openMatchPreds(${m.match_id})` : ''}">
+        <div class="match-card ${cls}" onclick="${action}">
           <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
           <div class="teams-row">
             <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
@@ -743,8 +760,8 @@ async function loadMyPredictions() {
             <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
           </div>
           <div class="match-footer">
-            <div class="pred-status">${statusText}</div>
-            ${viewPreds}
+            <div class="pred-status done">${statusText}</div>
+            ${!m.open ? `<div class="deadline-text" style="margin-top:4px">${m.is_finished ? t('ui_view_result') : t('ui_view_participants')}</div>` : ''}
           </div>
         </div>`;
     }).join('');
@@ -785,6 +802,68 @@ function openMatchPreds(matchId) {
         </div>`).join('');
     } catch (e) {
       listEl.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="openMatchPreds(${matchId})" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+    }
+  })();
+}
+
+const QUESTION_LABEL_KEYS = ['q_ht_score','q_ht_result','q_ht_goals','q_ft_score','q_ft_result','q_ft_goals','q_tot_score','q_winner','q_tot_goals','q_goals_t1','q_goals_t2','q_first_team','q_scorer1','q_min1','q_scorer2','q_min2','q_penalty'];
+function getQuestionLabel(i, t1, t2) {
+  const k = QUESTION_LABEL_KEYS[i];
+  if (k === 'q_goals_t1') return t('q_goals_t1', { t1: t1 || '' });
+  if (k === 'q_goals_t2') return t('q_goals_t2', { t2: t2 || '' });
+  return t(k);
+}
+
+function openPredictionDetail(matchId) {
+  const headerEl = document.getElementById('pred-detail-header');
+  const totalEl = document.getElementById('pred-detail-total');
+  const listEl = document.getElementById('pred-detail-list');
+  listEl.innerHTML = '<div class="spinner"></div>';
+  headerEl.innerHTML = '';
+  totalEl.innerHTML = '';
+  document.getElementById('pd-hdr-title').textContent = t('ui_pred_detail_title');
+  showScreen('pred-detail');
+  window.Telegram?.WebApp?.BackButton?.show();
+
+  (async () => {
+    try {
+      const data = await apiGet(`/api/prediction-detail/${matchId}`);
+      const t1 = data.team_1 || '';
+      const t2 = data.team_2 || '';
+      headerEl.innerHTML = `
+        <div class="pred-teams">
+          <div class="pred-team"><div class="pred-flag">${data.flag_1 || ''}</div><div class="pred-tname">${t1}</div></div>
+          <div class="pred-vs">VS</div>
+          <div class="pred-team"><div class="pred-flag">${data.flag_2 || ''}</div><div class="pred-tname">${t2}</div></div>
+        </div>`;
+      if (data.is_finished && data.total_points != null) {
+        totalEl.innerHTML = `<div class="progress-info"><span class="progress-label">${t('ui_pts')}</span><span class="progress-count">${data.total_points} / 17</span></div><div class="progress-bar"><div class="progress-fill" style="width:${(data.total_points/17)*100}%"></div></div>`;
+      }
+      const pred = data.prediction || {};
+      const res = data.result || {};
+      const points = data.points_per_question || [];
+      let rows = '';
+      for (let i = 0; i < 17; i++) {
+        const qLabel = getQuestionLabel(i, t1, t2);
+        const myVal = esc(pred[`q${i+1}`] ?? '—');
+        const resVal = data.is_finished ? esc(res[`q${i+1}`] ?? '—') : '—';
+        const pt = data.is_finished && points[i] !== undefined ? points[i] : null;
+        const ptCls = pt === 1 ? 'green' : (pt === 0 ? 'red' : '');
+        const ptColor = pt === 1 ? 'var(--green)' : (pt === 0 ? 'var(--red-live)' : 'var(--tg-hint)');
+        rows += `
+          <div class="question-card" style="margin:8px 12px">
+            <div class="q-num">Q${i+1}</div>
+            <div class="q-text">${esc(qLabel)}</div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px">
+              <span class="${ptCls}">${t('ui_your_pred')}: ${myVal}</span>
+            </div>
+            ${data.is_finished ? `<div style="font-size:12px;color:var(--tg-hint);margin-top:4px">${t('ui_result')}: ${resVal}</div>` : ''}
+            ${pt !== null ? `<div style="margin-top:4px;font-weight:700;color:${ptColor}">${pt} ${t('ui_point')}</div>` : ''}
+          </div>`;
+      }
+      listEl.innerHTML = rows;
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="openPredictionDetail(${matchId})" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
     }
   })();
 }
@@ -898,12 +977,13 @@ function showScreen(name) {
   const screenEl = document.getElementById(`screen-${name}`);
   if (screenEl) screenEl.classList.add('active');
   let navEl = document.getElementById(`nav-${name}`);
-  if (!navEl && name === 'match-preds') navEl = document.getElementById('nav-predict');
+  if (!navEl && (name === 'match-preds' || name === 'pred-detail')) navEl = document.getElementById('nav-predict');
   if (navEl) navEl.classList.add('active');
   const isPredict = name === 'predict';
   const isMatchPreds = name === 'match-preds';
-  if (!isPredict && !isMatchPreds && name !== 'my') window.Telegram?.WebApp?.BackButton?.hide();
-  if (name === 'my') {
+  const isPredDetail = name === 'pred-detail';
+  if (!isPredict && !isMatchPreds && !isPredDetail && name !== 'my') window.Telegram?.WebApp?.BackButton?.hide();
+  if (name === 'my' || isPredDetail) {
     window.Telegram?.WebApp?.BackButton?.show();
   }
 
@@ -952,6 +1032,8 @@ if (tg) {
     if (document.getElementById('screen-predict')?.classList.contains('active'))
       showScreen('matches');
     else if (document.getElementById('screen-match-preds')?.classList.contains('active'))
+      showScreen('my');
+    else if (document.getElementById('screen-pred-detail')?.classList.contains('active'))
       showScreen('my');
     else if (document.getElementById('screen-my')?.classList.contains('active'))
       showScreen('matches');
