@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Тотошка 2026</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --tg-bg:        var(--tg-theme-bg-color, #17212b);
+    --tg-secondary: var(--tg-theme-secondary-bg-color, #232e3c);
+    --tg-text:      var(--tg-theme-text-color, #f5f5f5);
+    --tg-hint:      var(--tg-theme-hint-color, #708499);
+    --tg-button:    var(--tg-theme-button-color, #2ea6ff);
+    --green:        #2dbd6e;
+    --green-dim:    #1a7a44;
+    --gold:         #f5c542;
+    --red-live:     #e05252;
+    --card-bg:      var(--tg-secondary);
+    --radius:       14px;
+    --radius-sm:    8px;
+    --nav-h:        64px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--tg-bg); color: var(--tg-text);
+    min-height: 100vh; overflow-x: hidden;
+    padding-bottom: var(--nav-h);
+  }
+
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-h);
+    background: var(--tg-secondary); border-top: 1px solid rgba(255,255,255,0.07);
+    display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; cursor: pointer; border: none;
+    background: none; color: var(--tg-hint); font-size: 10px; font-weight: 500;
+    transition: color .2s;
+  }
+  .nav-btn.active { color: var(--tg-button); }
+  .nav-btn svg { width: 22px; height: 22px; }
+
+  .screen { display: none; animation: fadeUp .25s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .header { padding: 16px 16px 10px; display: flex; align-items: center; justify-content: space-between; }
+  .header-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1.5px; }
+  .header-title span { color: var(--green); }
+  .badge { background: var(--green); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 1.2px; color: var(--tg-hint);
+    text-transform: uppercase; padding: 4px 16px 8px;
+  }
+
+  .match-card {
+    margin: 0 12px 10px; background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; position: relative; overflow: hidden;
+    transition: transform .15s, border-color .15s;
+  }
+  .match-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--green); opacity: 0; transition: opacity .2s;
+  }
+  .match-card:active { transform: scale(0.98); }
+  .match-card:active::before { opacity: 1; }
+  .match-card.predicted { border-color: rgba(45,189,110,0.3); }
+  .match-card.predicted::before { background: var(--green); opacity: 1; }
+  .match-card.closed { opacity: 0.6; cursor: default; }
+
+  .match-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .match-stage { font-size: 10px; font-weight: 600; letter-spacing: .8px; color: var(--tg-hint); text-transform: uppercase; }
+  .match-time  { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--tg-hint); }
+
+  .teams-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+  .team { text-align: center; }
+  .team-flag { font-size: 30px; line-height: 1; margin-bottom: 4px; }
+  .team-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .score-box { background: rgba(0,0,0,0.25); border-radius: 10px; padding: 8px 14px; text-align: center; }
+  .score-vs  { font-size: 12px; font-weight: 700; color: var(--tg-hint); letter-spacing: 1px; }
+
+  .match-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .pred-status { font-size: 12px; font-weight: 500; }
+  .pred-status.done    { color: var(--green); }
+  .pred-status.missing { color: var(--gold); }
+  .deadline-text { font-size: 11px; color: var(--tg-hint); }
+  .countdown { color: var(--gold); font-weight: 600; }
+
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .chip.green { background: rgba(45,189,110,0.15); color: var(--green); }
+  .chip.gold  { background: rgba(245,197,66,0.15);  color: var(--gold); }
+  .chip.red   { background: rgba(224,82,82,0.15);   color: var(--red-live); }
+
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--tg-hint); font-size: 15px; }
+  .spinner { text-align: center; padding: 48px 24px; }
+  .spinner::after { content: '⏳'; font-size: 32px; animation: pulse 1.2s infinite; display: inline-block; }
+
+  /* Predict */
+  .pred-match-header {
+    background: var(--tg-secondary); padding: 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.07); text-align: center;
+  }
+  .pred-teams { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 8px; }
+  .pred-team  { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pred-flag  { font-size: 40px; }
+  .pred-tname { font-size: 14px; font-weight: 700; }
+  .pred-vs    { font-size: 20px; font-weight: 700; color: var(--tg-hint); }
+
+  .pred-progress { padding: 14px 16px 0; }
+  .progress-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .progress-label { font-size: 12px; color: var(--tg-hint); }
+  .progress-count { font-size: 12px; font-weight: 700; color: var(--green); }
+  .progress-bar   { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+  .progress-fill  { height: 100%; background: var(--green); border-radius: 2px; transition: width .3s ease; }
+
+  .question-card {
+    margin: 14px 12px 0; background: var(--card-bg);
+    border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius); padding: 16px;
+  }
+  .q-num  { font-size: 10px; font-weight: 700; color: var(--green); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .q-text { font-size: 15px; font-weight: 600; margin-bottom: 14px; line-height: 1.4; }
+
+  .options-grid         { display: grid; gap: 8px; }
+  .options-grid.cols2   { grid-template-columns: 1fr 1fr; }
+  .options-grid.cols3   { grid-template-columns: 1fr 1fr 1fr; }
+  .options-grid.cols4   { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .opt-btn {
+    background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-sm); padding: 10px 8px; color: var(--tg-text);
+    font-size: 13px; font-weight: 500; cursor: pointer; text-align: center; transition: all .15s;
+  }
+  .opt-btn:active  { transform: scale(0.96); }
+  .opt-btn.selected { background: rgba(45,189,110,0.15); border-color: var(--green); color: var(--green); font-weight: 700; }
+
+  .score-picker  { display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .score-spinner { display: flex; flex-direction: column; align-items: center; }
+  .spin-btn {
+    width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.08);
+    border: none; color: var(--tg-text); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: background .15s;
+  }
+  .spin-btn:active { background: var(--green); }
+  .spin-val   { font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 700; width: 44px; text-align: center; line-height: 1.4; }
+  .score-colon { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; color: var(--tg-hint); margin-top: -4px; }
+
+  .q-nav { display: flex; gap: 10px; margin: 16px 12px 0; }
+  .q-nav-btn { flex: 1; padding: 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 14px; font-weight: 700; transition: all .15s; }
+  .q-nav-btn.back { background: rgba(255,255,255,0.08); color: var(--tg-text); }
+  .q-nav-btn.next { background: var(--green); color: #fff; }
+  .q-nav-btn.next:disabled { background: var(--green-dim); opacity: .6; }
+
+  /* Leaderboard */
+  .lb-podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding: 20px 16px 24px; }
+  .podium-item { flex: 1; text-align: center; max-width: 110px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius); padding: 14px 8px; }
+  .podium-item.first { transform: scale(1.05); }
+  .podium-medal { font-size: 28px; margin-bottom: 6px; }
+  .podium-alias { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .podium-pts   { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: var(--green); }
+  .podium-pts-label { font-size: 9px; color: var(--tg-hint); letter-spacing: .5px; }
+  .first .podium-pts { color: var(--gold); font-size: 22px; }
+
+  .lb-list { padding: 0 12px; }
+  .lb-row { display: flex; align-items: center; gap: 12px; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px; }
+  .lb-rank  { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: var(--tg-hint); width: 24px; text-align: center; }
+  .lb-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--green-dim), var(--green)); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .lb-name  { flex: 1; }
+  .lb-alias { font-size: 14px; font-weight: 600; }
+  .lb-clan  { font-size: 11px; color: var(--tg-hint); }
+  .lb-score { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; }
+  .lb-row.me { border-color: rgba(45,189,110,0.4); background: rgba(45,189,110,0.05); }
+  .lb-row.me .lb-score { color: var(--green); }
+
+  /* Profile */
+  .profile-hero { padding: 24px 16px; text-align: center; background: var(--tg-secondary); border-bottom: 1px solid rgba(255,255,255,0.07); }
+  .profile-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg,#1a7a44,var(--green)); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #fff; margin: 0 auto 12px; border: 3px solid var(--green); }
+  .profile-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .profile-clan { font-size: 13px; color: var(--tg-hint); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; padding: 16px 12px; }
+  .stat-card  { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius-sm); padding: 14px 8px; text-align: center; }
+  .stat-val   { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.gold  { color: var(--gold); }
+  .stat-label { font-size: 10px; color: var(--tg-hint); text-transform: uppercase; letter-spacing: .6px; }
+
+  .rank-banner { margin: 0 12px 12px; background: linear-gradient(135deg,rgba(45,189,110,.15),rgba(45,189,110,.05)); border: 1px solid rgba(45,189,110,.3); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+  .rank-num   { font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: var(--green); line-height: 1; }
+  .rank-info  { flex: 1; }
+  .rank-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .rank-sub   { font-size: 12px; color: var(--tg-hint); }
+
+  /* Success */
+  .success-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .success-overlay.show { opacity: 1; pointer-events: all; }
+  .success-box { background: var(--tg-secondary); border-radius: 20px; padding: 32px 40px; text-align: center; transform: scale(.8); transition: transform .3s; border: 1px solid rgba(45,189,110,.3); }
+  .success-overlay.show .success-box { transform: scale(1); }
+  .success-icon  { font-size: 56px; margin-bottom: 12px; display: block; }
+  .success-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .success-sub   { font-size: 14px; color: var(--tg-hint); }
+
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
+</style>
+</head>
+<body>
+
+<!-- ══ SCREEN: MATCHES ═══════════════════════════════════ -->
+<div id="screen-matches" class="screen active">
+  <div class="header">
+    <div class="header-title">ТОТО<span>ШКА</span></div>
+    <span class="badge" id="hdr-badge"></span>
+  </div>
+  <div class="section-label" id="lbl-upcoming"></div>
+  <div id="matches-list"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ SCREEN: PREDICT ═══════════════════════════════════ -->
+<div id="screen-predict" class="screen">
+  <div class="pred-match-header">
+    <div class="pred-teams">
+      <div class="pred-team"><div class="pred-flag" id="pf1"></div><div class="pred-tname" id="pt1"></div></div>
+      <div class="pred-vs">VS</div>
+      <div class="pred-team"><div class="pred-flag" id="pf2"></div><div class="pred-tname" id="pt2"></div></div>
+    </div>
+  </div>
+  <div class="pred-progress">
+    <div class="progress-info">
+      <span class="progress-label" id="q-lbl"></span>
+      <span class="progress-count" id="q-cnt">0/17</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="q-bar" style="width:0%"></div></div>
+  </div>
+  <div id="q-area"></div>
+  <div class="q-nav">
+    <button class="q-nav-btn back" id="btn-bk" onclick="prevQ()"></button>
+    <button class="q-nav-btn next" id="btn-nx" onclick="nextQ()"></button>
+  </div>
+</div>
+
+<!-- ══ SCREEN: LEADERBOARD ═══════════════════════════════ -->
+<div id="screen-leaderboard" class="screen">
+  <div class="header">
+    <div class="header-title" id="lb-hdr-title"></div>
+  </div>
+  <div id="lb-content"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ SCREEN: PROFILE ═══════════════════════════════════ -->
+<div id="screen-profile" class="screen">
+  <div id="profile-content"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ NAV ════════════════════════════════════════════════ -->
+<nav class="nav">
+  <button class="nav-btn active" id="nav-matches" onclick="showScreen('matches')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>
+    </svg>
+    <span id="nl-matches"></span>
+  </button>
+  <button class="nav-btn" id="nav-predict" onclick="showScreen('predict')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+    <span id="nl-predict"></span>
+  </button>
+  <button class="nav-btn" id="nav-leaderboard" onclick="showScreen('leaderboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+    <span id="nl-lb"></span>
+  </button>
+  <button class="nav-btn" id="nav-profile" onclick="showScreen('profile')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </svg>
+    <span id="nl-profile"></span>
+  </button>
+</nav>
+
+<!-- ══ SUCCESS ════════════════════════════════════════════ -->
+<div class="success-overlay" id="sov" onclick="closeSuccess()">
+  <div class="success-box">
+    <span class="success-icon">⚽</span>
+    <div class="success-title" id="sov-title"></div>
+    <div class="success-sub"   id="sov-sub"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG — set your API URL here
+// ══════════════════════════════════════════════════════════
+const API_BASE = 'https://relaxed-kitten-7fe32c.netlify.app';
+const TG_INIT  = window.Telegram?.WebApp?.initData || '';
+
+// ══════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ══════════════════════════════════════════════════════════
+const TEXTS = {
+  ru: {
+    pred_saved:'✅ Заперт в сейфе!', pred_first:'🎉 ПЕРВЫЙ ПРОГНОЗ!', pred_no_matches:'Матчей нет 😔',
+    ui_badge:'⚽ ЧМ 2026', ui_lbl_upcoming:'📅 БЛИЖАЙШИЕ МАТЧИ',
+    ui_nav_matches:'Матчи', ui_nav_predict:'Прогноз', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профиль',
+    ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧКОВ',
+    ui_stat_pts:'Очков', ui_stat_rank:'Место', ui_stat_preds:'Прогнозов',
+    ui_stat_avg:'Сред. балл', ui_stat_acc:'Точность', ui_stat_streak:'Серия',
+    ui_rank_title:'Место в рейтинге',
+    ui_rank_sub_tpl:'📈 До обгону {alias}: {gap} очк.',
+    ui_pred_saved:'✅ Прогноз сохранён', ui_pred_missing:'⚠️ Нет прогноза', ui_pred_closed:'🔒 Закрыт',
+    ui_deadline:'через {t}',
+    ui_q_label:'Вопрос {n} из {total}', ui_q_back:'← Назад', ui_q_next:'Далее →', ui_q_save:'💾 Сохранить',
+    ui_success_title:'Прогноз сохранён!', ui_success_sub:'Удачи на матче!',
+    ui_loading:'Загрузка...', ui_error:'Ошибка загрузки', ui_retry:'Повторить',
+    ui_no_score_change:'Не будет первого гола', ui_no_score_change2:'Не будет второго гола',
+    q_ht_score:'Счёт первого тайма?', q_ht_result:'Исход первого тайма?', q_ht_goals:'Голов в первом тайме?',
+    q_ft_score:'Счёт второго тайма?', q_ft_result:'Исход второго тайма?', q_ft_goals:'Голов во втором тайме?',
+    q_tot_score:'Итоговый счёт матча?', q_winner:'Победитель матча?', q_tot_goals:'Всего голов в матче?',
+    q_goals_t1:'Сколько голов забьёт {t1}?', q_goals_t2:'Сколько голов забьёт {t2}?',
+    q_first_team:'Какая команда забьёт первой?',
+    q_scorer1:'Кто забьёт первый гол?', q_min1:'Минута первого гола?',
+    q_scorer2:'Ещё один автор гола?', q_min2:'Минута ещё одного гола?',
+    q_penalty:'Будет ли пенальти в матче?',
+    o_win1:'Победа {t1}', o_draw:'Ничья', o_win2:'Победа {t2}', o_nobody:'Никто',
+    o_yes:'Да', o_no:'Нет', o_other:'Другой',
+    o_no_first_goal:'Не будет первого гола', o_no_second_goal:'Не будет второго гола',
+  },
+  en: {
+    pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
+    ui_badge:'⚽ WC 2026', ui_lbl_upcoming:'📅 UPCOMING MATCHES',
+    ui_nav_matches:'Matches', ui_nav_predict:'Predict', ui_nav_lb:'Rankings', ui_nav_profile:'Profile',
+    ui_lb_hdr:'RANKINGS', ui_pts:'PTS',
+    ui_stat_pts:'Points', ui_stat_rank:'Rank', ui_stat_preds:'Predictions',
+    ui_stat_avg:'Avg score', ui_stat_acc:'Accuracy', ui_stat_streak:'Streak',
+    ui_rank_title:'Current ranking',
+    ui_rank_sub_tpl:'📈 {gap} pts to overtake {alias}',
+    ui_pred_saved:'✅ Prediction saved', ui_pred_missing:'⚠️ No prediction', ui_pred_closed:'🔒 Closed',
+    ui_deadline:'in {t}',
+    ui_q_label:'Question {n} of {total}', ui_q_back:'← Back', ui_q_next:'Next →', ui_q_save:'💾 Save',
+    ui_success_title:'Prediction saved!', ui_success_sub:'Good luck with the match!',
+    ui_loading:'Loading...', ui_error:'Loading error', ui_retry:'Retry',
+    ui_no_score_change:'No first goal', ui_no_score_change2:'No second goal',
+    q_ht_score:'First half score?', q_ht_result:'First half result?', q_ht_goals:'Goals in first half?',
+    q_ft_score:'Second half score?', q_ft_result:'Second half result?', q_ft_goals:'Goals in second half?',
+    q_tot_score:'Final match score?', q_winner:'Match winner?', q_tot_goals:'Total goals in match?',
+    q_goals_t1:'How many goals will {t1} score?', q_goals_t2:'How many goals will {t2} score?',
+    q_first_team:'Which team will score first?',
+    q_scorer1:'Who will score the first goal?', q_min1:'Minute of the first goal?',
+    q_scorer2:'Another goalscorer?', q_min2:'Minute of the next goal?',
+    q_penalty:'Will there be a penalty?',
+    o_win1:'{t1} win', o_draw:'Draw', o_win2:'{t2} win', o_nobody:'Nobody',
+    o_yes:'Yes', o_no:'No', o_other:'Other',
+    o_no_first_goal:'No first goal', o_no_second_goal:'No second goal',
+  },
+  uk: {
+    pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
+    ui_badge:'⚽ ЧС 2026', ui_lbl_upcoming:'📅 НАЙБЛИЖЧІ МАТЧІ',
+    ui_nav_matches:'Матчі', ui_nav_predict:'Прогноз', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профіль',
+    ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧОК',
+    ui_stat_pts:'Очків', ui_stat_rank:'Місце', ui_stat_preds:'Прогнозів',
+    ui_stat_avg:'Сер. бал', ui_stat_acc:'Точність', ui_stat_streak:'Серія',
+    ui_rank_title:'Місце в рейтингу',
+    ui_rank_sub_tpl:'📈 До обгону {alias}: {gap} очк.',
+    ui_pred_saved:'✅ Прогноз збережено', ui_pred_missing:'⚠️ Немає прогнозу', ui_pred_closed:'🔒 Закрито',
+    ui_deadline:'через {t}',
+    ui_q_label:'Питання {n} з {total}', ui_q_back:'← Назад', ui_q_next:'Далі →', ui_q_save:'💾 Зберегти',
+    ui_success_title:'Прогноз збережено!', ui_success_sub:'Удачі на матчі!',
+    ui_loading:'Завантаження...', ui_error:'Помилка завантаження', ui_retry:'Повторити',
+    ui_no_score_change:'Не буде першого гола', ui_no_score_change2:'Не буде другого гола',
+    q_ht_score:'Рахунок першого тайму?', q_ht_result:'Підсумок першого тайму?', q_ht_goals:'Голів у першому таймі?',
+    q_ft_score:'Рахунок другого тайму?', q_ft_result:'Підсумок другого тайму?', q_ft_goals:'Голів у другому таймі?',
+    q_tot_score:'Підсумковий рахунок матчу?', q_winner:'Переможець матчу?', q_tot_goals:'Всього голів у матчі?',
+    q_goals_t1:"Скільки голів заб'є {t1}?", q_goals_t2:"Скільки голів заб'є {t2}?",
+    q_first_team:'Яка команда забʼє першою?',
+    q_scorer1:"Хто заб'є перший гол?", q_min1:'Хвилина першого гола?',
+    q_scorer2:'Ще один голеадор?', q_min2:'Хвилина наступного гола?',
+    q_penalty:'Чи буде пенальті у матчі?',
+    o_win1:'Перемога {t1}', o_draw:'Нічия', o_win2:'Перемога {t2}', o_nobody:'Ніхто',
+    o_yes:'Так', o_no:'Ні', o_other:'Інший',
+    o_no_first_goal:'Не буде першого гола', o_no_second_goal:'Не буде другого гола',
+  },
+};
+
+let LANG = 'ru';
+function t(key, vars = {}) {
+  const dict = TEXTS[LANG] || TEXTS.ru;
+  let str = (key in dict) ? dict[key] : (TEXTS.ru[key] ?? `[${key}]`);
+  for (const [k, v] of Object.entries(vars)) str = str.replaceAll(`{${k}}`, v);
+  return str;
+}
+function detectLang() {
+  const urlLang = new URLSearchParams(window.location.search).get('lang');
+  if (urlLang && TEXTS[urlLang]) return urlLang;
+  const code = window.Telegram?.WebApp?.initDataUnsafe?.user?.language_code || '';
+  if (code.startsWith('uk')) return 'uk';
+  if (code.startsWith('en')) return 'en';
+  return 'ru';
+}
+
+// ══════════════════════════════════════════════════════════
+// API helpers
+// ══════════════════════════════════════════════════════════
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'X-Init-Data': TG_INIT },
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json();
+}
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'X-Init-Data': TG_INIT, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `API ${res.status}`);
+  }
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════
+// Data cache
+// ══════════════════════════════════════════════════════════
+let matchesCache = null;
+let squadsCache  = {};
+
+// ══════════════════════════════════════════════════════════
+// Matches screen
+// ══════════════════════════════════════════════════════════
+async function loadMatches() {
+  const container = document.getElementById('matches-list');
+  try {
+    const matches = await apiGet('/api/matches');
+    matchesCache = matches;
+    if (!matches.length) {
+      container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+      return;
+    }
+    container.innerHTML = matches.map(m => {
+      const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+      const cls = m.predicted ? 'predicted' : (!m.open ? 'closed' : '');
+      const statusText = m.predicted ? t('ui_pred_saved')
+                       : !m.open     ? t('ui_pred_closed')
+                                     : t('ui_pred_missing');
+      const statusCls  = m.predicted ? 'done' : 'missing';
+      let deadlineHtml = '';
+      if (m.open && !m.predicted) {
+        const diff = calcCountdown(m.kickoff_time);
+        if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
+      }
+      return `
+        <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : ''}">
+          <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
+          <div class="teams-row">
+            <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
+            <div class="score-box"><div class="score-vs">VS</div></div>
+            <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
+          </div>
+          <div class="match-footer">
+            <div class="pred-status ${statusCls}">${statusText}</div>
+            ${deadlineHtml}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadMatches()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+function calcCountdown(kickoffStr) {
+  if (!kickoffStr) return '';
+  const parts = kickoffStr.split(/[- :]/);
+  const kickoff = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
+  const diff = kickoff - new Date();
+  if (diff <= 0) return '';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h > 24) return `${Math.floor(h/24)}д ${h%24}ч`;
+  return `${h}:${String(m).padStart(2,'0')}`;
+}
+
+// ══════════════════════════════════════════════════════════
+// Predict screen
+// ══════════════════════════════════════════════════════════
+let currentMatch = null;
+let currentSquads = { squad_1: [], squad_2: [] };
+let questions = [], answers = {}, scoreVals = {}, currentQ = 0;
+
+function buildQuestions(t1, t2) {
+  const mins = ['1–15','16–30','31–45','46–60','61–75','76–90'];
+  const s1 = currentSquads.squad_1 || [];
+  const s2 = currentSquads.squad_2 || [];
+  const allScorers = [...s1, ...s2, t('o_other')];
+  const scorerCols = allScorers.length > 6 ? 3 : 2;
+
+  return [
+    { key:'q1',  text: t('q_ht_score'),               type:'score' },
+    { key:'q2',  text: t('q_ht_result'),              type:'opts', opts:[t('o_win1',{t1}), t('o_draw'), t('o_win2',{t2})] },
+    { key:'q3',  text: t('q_ht_goals'),               type:'opts', opts:['0','1','2','3+'], cols:4 },
+    { key:'q4',  text: t('q_ft_score'),               type:'score' },
+    { key:'q5',  text: t('q_ft_result'),              type:'opts', opts:[t('o_win1',{t1}), t('o_draw'), t('o_win2',{t2})] },
+    { key:'q6',  text: t('q_ft_goals'),               type:'opts', opts:['0','1','2','3+'], cols:4 },
+    { key:'q7',  text: t('q_tot_score'),              type:'score' },
+    { key:'q8',  text: t('q_winner'),                 type:'opts', opts:[t1, t('o_draw'), t2] },
+    { key:'q9',  text: t('q_tot_goals'),              type:'opts', opts:['0','1','2','3','4','5+'], cols:3 },
+    { key:'q10', text: t('q_goals_t1',{t1}),          type:'opts', opts:['0','1','2','3+'], cols:4 },
+    { key:'q11', text: t('q_goals_t2',{t2}),          type:'opts', opts:['0','1','2','3+'], cols:4 },
+    { key:'q12', text: t('q_first_team'),             type:'opts', opts:[t1, t('o_nobody'), t2] },
+    { key:'q13', text: t('q_scorer1'),                type:'opts', opts:[...allScorers, t('o_no_first_goal')], cols:scorerCols },
+    { key:'q14', text: t('q_min1'),                   type:'opts', opts:[...mins, t('o_no_first_goal')], cols:3 },
+    { key:'q15', text: t('q_scorer2'),                type:'opts', opts:[...allScorers, t('o_no_second_goal')], cols:scorerCols },
+    { key:'q16', text: t('q_min2'),                   type:'opts', opts:[...mins, t('o_no_second_goal')], cols:3 },
+    { key:'q17', text: t('q_penalty'),                type:'opts', opts:[t('o_yes'), t('o_no')] },
+  ];
+}
+
+async function openPredict(matchId) {
+  const m = matchesCache?.find(x => x.match_id === matchId);
+  if (!m || !m.open) return;
+
+  currentMatch = m;
+  answers = {}; scoreVals = {}; currentQ = 0;
+
+  document.getElementById('pf1').textContent = m.flag_1;
+  document.getElementById('pf2').textContent = m.flag_2;
+  document.getElementById('pt1').textContent = m.team_1;
+  document.getElementById('pt2').textContent = m.team_2;
+
+  showScreen('predict');
+  window.Telegram?.WebApp?.BackButton?.show();
+
+  try {
+    const sq = squadsCache[matchId] || await apiGet(`/api/squads/${matchId}`);
+    squadsCache[matchId] = sq;
+    currentSquads = sq;
+  } catch (_) {
+    currentSquads = { squad_1: [], squad_2: [] };
+  }
+
+  questions = buildQuestions(m.team_1, m.team_2);
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q     = questions[currentQ];
+  const total = questions.length;
+  const done  = Object.keys(answers).length;
+
+  document.getElementById('q-lbl').textContent = t('ui_q_label', { n: currentQ+1, total });
+  document.getElementById('q-cnt').textContent = `${done} / ${total}`;
+  document.getElementById('q-bar').style.width = `${(done/total)*100}%`;
+  document.getElementById('btn-bk').style.display = currentQ === 0 ? 'none' : 'flex';
+  updateNextBtnLabel();
+
+  const area = document.getElementById('q-area');
+  if (q.type === 'score') {
+    if (!scoreVals[currentQ]) scoreVals[currentQ] = [0,0];
+    const [g1,g2] = scoreVals[currentQ];
+    area.innerHTML = `
+      <div class="question-card">
+        <div class="q-num">Q${currentQ+1}</div>
+        <div class="q-text">${q.text}</div>
+        <div class="score-picker">
+          <div class="score-spinner">
+            <button class="spin-btn" onclick="chScore(${currentQ},0,1)">＋</button>
+            <div class="spin-val" id="sv${currentQ}0">${g1}</div>
+            <button class="spin-btn" onclick="chScore(${currentQ},0,-1)">－</button>
+          </div>
+          <div class="score-colon">:</div>
+          <div class="score-spinner">
+            <button class="spin-btn" onclick="chScore(${currentQ},1,1)">＋</button>
+            <div class="spin-val" id="sv${currentQ}1">${g2}</div>
+            <button class="spin-btn" onclick="chScore(${currentQ},1,-1)">－</button>
+          </div>
+        </div>
+      </div>`;
+    if (!answers[currentQ]) answers[currentQ] = '0:0';
+  } else {
+    const cols = q.cols || (q.opts.length <= 3 ? q.opts.length : 2);
+    const cls  = cols >= 3 ? `cols${cols}` : 'cols2';
+    area.innerHTML = `
+      <div class="question-card">
+        <div class="q-num">Q${currentQ+1}</div>
+        <div class="q-text">${q.text}</div>
+        <div class="options-grid ${cls}">
+          ${q.opts.map(o => `
+            <button class="opt-btn ${answers[currentQ]===o?'selected':''}"
+                    onclick="selectOpt(${currentQ},this)">${o}</button>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+  updateNextBtn();
+}
+
+function updateNextBtnLabel() {
+  document.getElementById('btn-nx').textContent =
+    currentQ === questions.length-1 ? t('ui_q_save') : t('ui_q_next');
+}
+
+function chScore(qi, side, delta) {
+  if (!scoreVals[qi]) scoreVals[qi] = [0,0];
+  scoreVals[qi][side] = Math.max(0, Math.min(20, scoreVals[qi][side]+delta));
+  document.getElementById(`sv${qi}${side}`).textContent = scoreVals[qi][side];
+  answers[qi] = `${scoreVals[qi][0]}:${scoreVals[qi][1]}`;
+  refreshProgress();
+  window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+}
+
+function selectOpt(qi, btn) {
+  btn.closest('.options-grid').querySelectorAll('.opt-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  answers[qi] = btn.textContent.trim();
+  refreshProgress();
+  window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+}
+
+function refreshProgress() {
+  const done  = Object.keys(answers).length;
+  const total = questions.length;
+  document.getElementById('q-cnt').textContent = `${done} / ${total}`;
+  document.getElementById('q-bar').style.width = `${(done/total)*100}%`;
+  updateNextBtn();
+}
+
+function updateNextBtn() {
+  document.getElementById('btn-nx').disabled = answers[currentQ] === undefined;
+}
+
+function nextQ() {
+  if (currentQ === questions.length-1) { savePrediction(); return; }
+  currentQ++;
+  renderQuestion();
+}
+function prevQ() {
+  if (currentQ > 0) { currentQ--; renderQuestion(); }
+}
+
+async function savePrediction() {
+  if (!currentMatch) return;
+  const payload = {};
+  for (let i = 0; i < 17; i++) {
+    payload[questions[i].key] = answers[i] ?? '';
+  }
+
+  const btn = document.getElementById('btn-nx');
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  try {
+    await apiPost(`/api/predictions/${currentMatch.match_id}`, payload);
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    document.getElementById('sov').classList.add('show');
+    setTimeout(() => {
+      document.getElementById('sov').classList.remove('show');
+      showScreen('matches');
+      loadMatches();
+    }, 2000);
+  } catch (e) {
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+    alert(e.message || t('ui_error'));
+    btn.disabled = false;
+    updateNextBtnLabel();
+  }
+}
+
+function closeSuccess() {
+  document.getElementById('sov').classList.remove('show');
+  showScreen('matches');
+}
+
+// ══════════════════════════════════════════════════════════
+// Leaderboard screen
+// ══════════════════════════════════════════════════════════
+async function loadLeaderboard() {
+  const container = document.getElementById('lb-content');
+  try {
+    const data = await apiGet('/api/leaderboard');
+    if (!data.length) {
+      container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+      return;
+    }
+    const medals = ['🥇','🥈','🥉'];
+    const top3 = data.slice(0,3);
+    const rest = data.slice(3);
+
+    const podiumOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+    const podiumClasses = top3.length >= 3 ? ['second','first','third'] : top3.map((_,i)=>i===0?'first':'');
+
+    let html = '<div class="lb-podium">';
+    podiumOrder.forEach((p, i) => {
+      const cls = podiumClasses[i] || '';
+      const medal = medals[data.indexOf(p)] || '';
+      html += `
+        <div class="podium-item ${cls}">
+          <div class="podium-medal">${medal}</div>
+          <div class="podium-alias">${esc(p.alias)}</div>
+          <div class="podium-pts">${p.points}</div>
+          <div class="podium-pts-label">${t('ui_pts')}</div>
+        </div>`;
+    });
+    html += '</div><div class="lb-list">';
+
+    rest.forEach(p => {
+      const meClass = p.is_me ? ' me' : '';
+      const initial = (p.alias || '?')[0].toUpperCase();
+      html += `
+        <div class="lb-row${meClass}">
+          <div class="lb-rank">${p.rank}</div>
+          <div class="lb-avatar">${initial}</div>
+          <div class="lb-name">
+            <div class="lb-alias">${esc(p.alias)}${p.is_me ? ' ('+t('ui_nav_profile')+')' : ''}</div>
+            <div class="lb-clan">${esc(p.clan || '')}</div>
+          </div>
+          <div class="lb-score">${p.points}</div>
+        </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadLeaderboard()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Profile screen
+// ══════════════════════════════════════════════════════════
+async function loadProfile() {
+  const container = document.getElementById('profile-content');
+  try {
+    const p = await apiGet('/api/profile');
+    const initial = (p.alias || '?')[0].toUpperCase();
+    const streakDisplay = p.streak || '—';
+    const rankSub = p.next_rival_alias
+      ? t('ui_rank_sub_tpl', { alias: esc(p.next_rival_alias), gap: p.gap_to_next })
+      : '';
+
+    container.innerHTML = `
+      <div class="profile-hero">
+        <div class="profile-avatar">${initial}</div>
+        <div class="profile-name">${esc(p.alias)} ${p.achievements || ''}</div>
+        <div class="profile-clan">${esc(p.clan || '')}</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-val green">${p.points}</div><div class="stat-label">${t('ui_stat_pts')}</div></div>
+        <div class="stat-card"><div class="stat-val gold">${p.rank}</div><div class="stat-label">${t('ui_stat_rank')}</div></div>
+        <div class="stat-card"><div class="stat-val">${p.predictions}</div><div class="stat-label">${t('ui_stat_preds')}</div></div>
+        <div class="stat-card"><div class="stat-val green">${p.avg_score}</div><div class="stat-label">${t('ui_stat_avg')}</div></div>
+        <div class="stat-card"><div class="stat-val">${p.accuracy}%</div><div class="stat-label">${t('ui_stat_acc')}</div></div>
+        <div class="stat-card"><div class="stat-val green">${streakDisplay}</div><div class="stat-label">${t('ui_stat_streak')}</div></div>
+      </div>
+      <div class="rank-banner">
+        <div class="rank-num">${p.rank}</div>
+        <div class="rank-info">
+          <div class="rank-title">${t('ui_rank_title')}</div>
+          <div class="rank-sub">${rankSub}</div>
+        </div>
+      </div>`;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadProfile()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ══════════════════════════════════════════════════════════
+// Screen navigation
+// ══════════════════════════════════════════════════════════
+let loadedScreens = { matches: false, leaderboard: false, profile: false };
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`screen-${name}`)?.classList.add('active');
+  document.getElementById(`nav-${name}`)?.classList.add('active');
+  if (name !== 'predict') window.Telegram?.WebApp?.BackButton?.hide();
+
+  if (name === 'matches' && !loadedScreens.matches) {
+    loadedScreens.matches = true;
+    loadMatches();
+  }
+  if (name === 'leaderboard' && !loadedScreens.leaderboard) {
+    loadedScreens.leaderboard = true;
+    loadLeaderboard();
+  }
+  if (name === 'profile' && !loadedScreens.profile) {
+    loadedScreens.profile = true;
+    loadProfile();
+  }
+}
+
+function applyStaticTranslations() {
+  document.getElementById('nl-matches').textContent = t('ui_nav_matches');
+  document.getElementById('nl-predict').textContent = t('ui_nav_predict');
+  document.getElementById('nl-lb').textContent      = t('ui_nav_lb');
+  document.getElementById('nl-profile').textContent = t('ui_nav_profile');
+  document.getElementById('hdr-badge').textContent   = t('ui_badge');
+  document.getElementById('lbl-upcoming').textContent = t('ui_lbl_upcoming');
+  document.getElementById('lb-hdr-title').textContent = t('ui_lb_hdr');
+  document.getElementById('btn-bk').textContent       = t('ui_q_back');
+  document.getElementById('sov-title').textContent    = t('ui_success_title');
+  document.getElementById('sov-sub').textContent      = t('ui_success_sub');
+}
+
+// ══════════════════════════════════════════════════════════
+// Telegram SDK
+// ══════════════════════════════════════════════════════════
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.BackButton?.onClick(() => {
+    if (document.getElementById('screen-predict')?.classList.contains('active'))
+      showScreen('matches');
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+LANG = detectLang();
+document.documentElement.lang = LANG;
+applyStaticTranslations();
+showScreen('matches');
+</script>
+</body>
+</html>
