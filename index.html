@@ -253,6 +253,26 @@
   </div>
 </div>
 
+<!-- ══ SCREEN: MY PREDICTIONS ══════════════════════════════ -->
+<div id="screen-my" class="screen">
+  <div class="header">
+    <div class="header-title" id="my-hdr-title"></div>
+  </div>
+  <div class="section-label" id="my-lbl"></div>
+  <div id="my-predictions-list"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ SCREEN: MATCH PREDICTIONS (participants) ═══════════ -->
+<div id="screen-match-preds" class="screen">
+  <div class="header">
+    <div class="header-title" id="mp-hdr-title"></div>
+  </div>
+  <div id="match-preds-header" class="pred-match-header"></div>
+  <div id="match-preds-list"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
 <!-- ══ SCREEN: LEADERBOARD ═══════════════════════════════ -->
 <div id="screen-leaderboard" class="screen">
   <div class="header">
@@ -276,7 +296,7 @@
     </svg>
     <span id="nl-matches"></span>
   </button>
-  <button class="nav-btn" id="nav-predict" onclick="showScreen('predict')">
+  <button class="nav-btn" id="nav-predict" onclick="showScreen('my')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
     </svg>
@@ -319,7 +339,9 @@ const TEXTS = {
   ru: {
     pred_saved:'✅ Заперт в сейфе!', pred_first:'🎉 ПЕРВЫЙ ПРОГНОЗ!', pred_no_matches:'Матчей нет 😔',
     ui_badge:'⚽ ЧМ 2026', ui_lbl_upcoming:'📅 БЛИЖАЙШИЕ МАТЧИ',
-    ui_nav_matches:'Матчи', ui_nav_predict:'Прогноз', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профиль',
+    ui_nav_matches:'Матчи', ui_nav_predict:'Мои прогнозы', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профиль',
+    ui_my_title:'Мои прогнозы', ui_my_lbl:'Ваши сохранённые прогнозы',
+    ui_view_participants:'Прогнозы участников', ui_mp_title:'Прогнозы участников',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧКОВ',
     ui_stat_pts:'Очков', ui_stat_rank:'Место', ui_stat_preds:'Прогнозов',
     ui_stat_avg:'Сред. балл', ui_stat_acc:'Точность', ui_stat_streak:'Серия',
@@ -346,7 +368,9 @@ const TEXTS = {
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
     ui_badge:'⚽ WC 2026', ui_lbl_upcoming:'📅 UPCOMING MATCHES',
-    ui_nav_matches:'Matches', ui_nav_predict:'Predict', ui_nav_lb:'Rankings', ui_nav_profile:'Profile',
+    ui_nav_matches:'Matches', ui_nav_predict:'My predictions', ui_nav_lb:'Rankings', ui_nav_profile:'Profile',
+    ui_my_title:'My predictions', ui_my_lbl:'Your saved predictions',
+    ui_view_participants:'Participants\' predictions', ui_mp_title:'Participants\' predictions',
     ui_lb_hdr:'RANKINGS', ui_pts:'PTS',
     ui_stat_pts:'Points', ui_stat_rank:'Rank', ui_stat_preds:'Predictions',
     ui_stat_avg:'Avg score', ui_stat_acc:'Accuracy', ui_stat_streak:'Streak',
@@ -373,7 +397,9 @@ const TEXTS = {
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
     ui_badge:'⚽ ЧС 2026', ui_lbl_upcoming:'📅 НАЙБЛИЖЧІ МАТЧІ',
-    ui_nav_matches:'Матчі', ui_nav_predict:'Прогноз', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профіль',
+    ui_nav_matches:'Матчі', ui_nav_predict:'Мої прогнози', ui_nav_lb:'Рейтинг', ui_nav_profile:'Профіль',
+    ui_my_title:'Мої прогнози', ui_my_lbl:'Ваші збережені прогнози',
+    ui_view_participants:'Прогнози учасників', ui_mp_title:'Прогнози учасників',
     ui_lb_hdr:'РЕЙТИНГ', ui_pts:'ОЧОК',
     ui_stat_pts:'Очків', ui_stat_rank:'Місце', ui_stat_preds:'Прогнозів',
     ui_stat_avg:'Сер. бал', ui_stat_acc:'Точність', ui_stat_streak:'Серія',
@@ -468,8 +494,9 @@ async function loadMatches() {
         const diff = calcCountdown(m.kickoff_time);
         if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
       }
+      const closedClick = !m.open ? `openMatchPreds(${m.match_id})` : '';
       return `
-        <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : ''}">
+        <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : closedClick}">
           <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
           <div class="teams-row">
             <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
@@ -478,6 +505,7 @@ async function loadMatches() {
           </div>
           <div class="match-footer">
             <div class="pred-status ${statusCls}">${statusText}</div>
+            ${!m.open ? `<div class="deadline-text">${t('ui_view_participants')}</div>` : ''}
             ${deadlineHtml}
           </div>
         </div>`;
@@ -690,6 +718,78 @@ function closeSuccess() {
 }
 
 // ══════════════════════════════════════════════════════════
+// My predictions screen
+// ══════════════════════════════════════════════════════════
+async function loadMyPredictions() {
+  const container = document.getElementById('my-predictions-list');
+  try {
+    const data = await apiGet('/api/my-predictions');
+    const items = data.items || [];
+    if (!items.length) {
+      container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+      return;
+    }
+    container.innerHTML = items.map(m => {
+      const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+      const cls = m.is_finished ? 'closed' : (m.open ? '' : 'closed');
+      const statusText = m.is_finished ? t('ui_pred_closed') : (m.open ? t('ui_pred_missing') : t('ui_pred_closed'));
+      const viewPreds = !m.open ? `<div class="deadline-text" style="margin-top:4px">${t('ui_view_participants')}</div>` : '';
+      return `
+        <div class="match-card ${cls}" onclick="${!m.open ? `openMatchPreds(${m.match_id})` : ''}">
+          <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
+          <div class="teams-row">
+            <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
+            <div class="score-box"><div class="score-vs">VS</div></div>
+            <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
+          </div>
+          <div class="match-footer">
+            <div class="pred-status">${statusText}</div>
+            ${viewPreds}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadMyPredictions()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+function openMatchPreds(matchId) {
+  const listEl = document.getElementById('match-preds-list');
+  const headerEl = document.getElementById('match-preds-header');
+  listEl.innerHTML = '<div class="spinner"></div>';
+  headerEl.innerHTML = '';
+  showScreen('match-preds');
+  window.Telegram?.WebApp?.BackButton?.show();
+
+  (async () => {
+    try {
+      const data = await apiGet(`/api/match-predictions/${matchId}`);
+      const match = data.match || {};
+      const items = data.items || [];
+      headerEl.innerHTML = `
+        <div class="pred-teams">
+          <div class="pred-team"><div class="pred-flag">${match.flag_1 || ''}</div><div class="pred-tname">${match.team_1 || ''}</div></div>
+          <div class="pred-vs">VS</div>
+          <div class="pred-team"><div class="pred-flag">${match.flag_2 || ''}</div><div class="pred-tname">${match.team_2 || ''}</div></div>
+        </div>`;
+      if (!items.length) {
+        listEl.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+        return;
+      }
+      listEl.innerHTML = items.map((p, i) => `
+        <div class="lb-row" style="margin:0 12px 8px">
+          <div class="lb-rank">${(i + 1)}</div>
+          <div class="lb-avatar">${((p.alias || '?')[0] || '?').toUpperCase()}</div>
+          <div class="lb-name"><div class="lb-alias">${esc(p.alias || '')}</div></div>
+          <div class="lb-score">${p.total_points ?? 0}</div>
+        </div>`).join('');
+    } catch (e) {
+      listEl.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="openMatchPreds(${matchId})" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+    }
+  })();
+}
+
+// ══════════════════════════════════════════════════════════
 // Leaderboard screen
 // ══════════════════════════════════════════════════════════
 async function loadLeaderboard() {
@@ -790,18 +890,30 @@ function esc(s) {
 // ══════════════════════════════════════════════════════════
 // Screen navigation
 // ══════════════════════════════════════════════════════════
-let loadedScreens = { matches: false, leaderboard: false, profile: false };
+let loadedScreens = { matches: false, my: false, leaderboard: false, profile: false };
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`screen-${name}`)?.classList.add('active');
-  document.getElementById(`nav-${name}`)?.classList.add('active');
-  if (name !== 'predict') window.Telegram?.WebApp?.BackButton?.hide();
+  const screenEl = document.getElementById(`screen-${name}`);
+  if (screenEl) screenEl.classList.add('active');
+  let navEl = document.getElementById(`nav-${name}`);
+  if (!navEl && name === 'match-preds') navEl = document.getElementById('nav-predict');
+  if (navEl) navEl.classList.add('active');
+  const isPredict = name === 'predict';
+  const isMatchPreds = name === 'match-preds';
+  if (!isPredict && !isMatchPreds && name !== 'my') window.Telegram?.WebApp?.BackButton?.hide();
+  if (name === 'my') {
+    window.Telegram?.WebApp?.BackButton?.show();
+  }
 
   if (name === 'matches' && !loadedScreens.matches) {
     loadedScreens.matches = true;
     loadMatches();
+  }
+  if (name === 'my' && !loadedScreens.my) {
+    loadedScreens.my = true;
+    loadMyPredictions();
   }
   if (name === 'leaderboard' && !loadedScreens.leaderboard) {
     loadedScreens.leaderboard = true;
@@ -821,6 +933,9 @@ function applyStaticTranslations() {
   document.getElementById('hdr-badge').textContent   = t('ui_badge');
   document.getElementById('lbl-upcoming').textContent = t('ui_lbl_upcoming');
   document.getElementById('lb-hdr-title').textContent = t('ui_lb_hdr');
+  document.getElementById('my-hdr-title').textContent = t('ui_my_title');
+  document.getElementById('my-lbl').textContent = t('ui_my_lbl');
+  document.getElementById('mp-hdr-title').textContent = t('ui_mp_title');
   document.getElementById('btn-bk').textContent       = t('ui_q_back');
   document.getElementById('sov-title').textContent    = t('ui_success_title');
   document.getElementById('sov-sub').textContent      = t('ui_success_sub');
@@ -835,6 +950,10 @@ if (tg) {
   tg.expand();
   tg.BackButton?.onClick(() => {
     if (document.getElementById('screen-predict')?.classList.contains('active'))
+      showScreen('matches');
+    else if (document.getElementById('screen-match-preds')?.classList.contains('active'))
+      showScreen('my');
+    else if (document.getElementById('screen-my')?.classList.contains('active'))
       showScreen('matches');
   });
 }
