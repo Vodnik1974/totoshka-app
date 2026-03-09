@@ -546,8 +546,8 @@ async function loadMatches() {
     matchesCache = matches;
     const actions = document.getElementById('matches-actions');
     if (actions) {
-      const openUnpred = matches.filter(m => m.open && !m.predicted);
-      actions.innerHTML = openUnpred.length
+      const openMatches = matches.filter(m => m.open);
+      actions.innerHTML = openMatches.length
         ? `<button class="quick-btn" onclick="quickZeroAllOpen()">${t('ui_quick_zero_all')}</button>`
         : '';
     }
@@ -568,7 +568,7 @@ async function loadMatches() {
         if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
       }
       const closedClick = !m.open ? `openMatchPreds(${m.match_id})` : '';
-      const quickBtn = m.open && !m.predicted
+      const quickBtn = m.open
         ? `<button class="quick-btn" onclick="event.stopPropagation(); quickZeroMatch(${m.match_id})">${t('ui_quick_zero_one')}</button>`
         : '';
       return `
