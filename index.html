@@ -2183,7 +2183,8 @@ function showScreen(name) {
   }
   if (name === 'leaderboard' && !loadedScreens.leaderboard) {
     loadedScreens.leaderboard = true;
-    loadLeaderboard();
+    // Инициализируем вкладки рейтинга (по умолчанию — Игроки)
+    setLeaderboardMode('players');
   }
   if (name === 'profile' && !loadedScreens.profile) {
     loadedScreens.profile = true;
@@ -2199,6 +2200,12 @@ function applyStaticTranslations() {
   document.getElementById('hdr-badge').textContent   = t('ui_badge');
   document.getElementById('lbl-upcoming').textContent = t('ui_lbl_upcoming');
   document.getElementById('lb-hdr-title').textContent = t('ui_lb_hdr');
+  const pTab = document.getElementById('lb-tab-players');
+  const cTab = document.getElementById('lb-tab-clans');
+  if (pTab && cTab) {
+    pTab.textContent = t('ui_lb_tab_players');
+    cTab.textContent = t('ui_lb_tab_clans');
+  }
   document.getElementById('my-hdr-title').textContent = t('ui_my_title');
   document.getElementById('my-lbl').textContent = t('ui_my_lbl');
   document.getElementById('mp-hdr-title').textContent = t('ui_mp_title');
