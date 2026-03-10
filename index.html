@@ -441,6 +441,27 @@
     cursor: pointer;
   }
 
+  .help-body {
+    padding: 12px 16px 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--tg-text);
+  }
+  .help-body h1, .help-body h2, .help-body h3 {
+    margin: 12px 0 6px;
+    font-weight: 800;
+  }
+  .help-body p {
+    margin: 6px 0;
+  }
+  .help-body ul {
+    margin: 6px 0 6px 18px;
+    padding-left: 0;
+  }
+  .help-body li {
+    margin: 4px 0;
+  }
+
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
 </head>
@@ -532,6 +553,15 @@
 <!-- ══ SCREEN: PROFILE ═══════════════════════════════════ -->
 <div id="screen-profile" class="screen">
   <div id="profile-content"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ SCREEN: HELP / MANUAL ═════════════════════════════ -->
+<div id="screen-help" class="screen">
+  <div class="header">
+    <div class="header-title" id="help-hdr-title"></div>
+  </div>
+  <div id="help-content" class="help-body"><div class="spinner"></div></div>
   <div style="height:8px"></div>
 </div>
 
@@ -675,6 +705,8 @@ const TEXTS = {
     ui_profile_exp:'Опыт игры',
     ui_profile_clan:'Клан',
     ui_profile_saved:'Профиль сохранён',
+    ui_help_title:'Помощь',
+    ui_help_btn:'Как играть',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -733,6 +765,8 @@ const TEXTS = {
     ui_profile_exp:'Experience',
     ui_profile_clan:'Clan',
     ui_profile_saved:'Profile saved',
+    ui_help_title:'Help',
+    ui_help_btn:'How to play',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -791,6 +825,8 @@ const TEXTS = {
     ui_profile_exp:'Досвід гри',
     ui_profile_clan:'Клан',
     ui_profile_saved:'Профіль збережено',
+    ui_help_title:'Допомога',
+    ui_help_btn:'Як грати',
   },
 };
 
@@ -1871,6 +1907,9 @@ async function loadProfile() {
       <button class="profile-edit-btn" onclick="toggleProfileEdit()">
         ✏️ <span>${t('ui_profile_edit')}</span>
       </button>
+      <button class="profile-edit-btn" onclick="openHelpScreen()">
+        ℹ️ <span>${t('ui_help_btn')}</span>
+      </button>
       <div class="settings-section" id="profile-settings">
         <div class="settings-card" id="profile-edit-block" style="display:none">
           <div class="settings-title">${t('ui_profile_edit')}</div>
@@ -1986,6 +2025,25 @@ async function saveProfileSettings() {
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
     alert(t('ui_error'));
   }
+}
+
+async function loadHelp() {
+  const container = document.getElementById('help-content');
+  if (!container) return;
+  container.innerHTML = '<div class="spinner"></div>';
+  try {
+    const res = await apiGet('/api/manual');
+    document.getElementById('help-hdr-title').textContent = t('ui_help_title');
+    const html = res?.html || '';
+    container.innerHTML = html || `<p>${t('ui_error')}</p>`;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadHelp()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
+function openHelpScreen() {
+  showScreen('help');
+  loadHelp();
 }
 
 async function toggleReminder(key) {
