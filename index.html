@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Тотошка 2026</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#17212b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Тотошка">
+<link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -239,6 +245,94 @@
   .success-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
   .success-sub   { font-size: 14px; color: var(--tg-hint); }
 
+  .ios-tip {
+    margin: 16px; padding: 12px 14px; border-radius: var(--radius-sm);
+    background: rgba(45, 189, 110, 0.12); border: 1px solid rgba(45, 189, 110, 0.3);
+    font-size: 12px; color: var(--tg-text); line-height: 1.45;
+  }
+
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chip {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    color: var(--tg-text);
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chip.active {
+    border-color: rgba(45, 189, 110, .55);
+    background: rgba(45, 189, 110, .16);
+  }
+
+  .pred-tools {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pred-meta {
+    padding: 0 16px 10px;
+    font-size: 12px;
+    color: var(--tg-hint);
+  }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--card);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -12px 30px rgba(0,0,0,.35);
+    transform: translateY(110%);
+    transition: transform .18s ease;
+    z-index: 9999;
+    max-height: 76vh;
+    overflow: hidden;
+  }
+  .sheet.show { transform: translateY(0); }
+  .sheet-head {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .sheet-title { font-weight: 900; }
+  .sheet-close {
+    border:none;
+    background: rgba(255,255,255,.08);
+    color: var(--tg-text);
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .sheet-body { padding: 12px 16px 16px; overflow:auto; max-height: calc(76vh - 56px); }
+  .q-jump-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .q-jump {
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    color: var(--tg-text);
+    padding: 10px 0;
+    border-radius: 12px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .q-jump.done { border-color: rgba(45,189,110,.45); background: rgba(45,189,110,.14); }
+  .q-jump.miss { border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.10); }
+
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
 </head>
@@ -251,6 +345,7 @@
     <span class="badge" id="hdr-badge"></span>
   </div>
   <div class="section-label" id="lbl-upcoming"></div>
+  <div id="matches-filters" class="filter-bar"></div>
   <div id="matches-actions" class="quick-bar"></div>
   <div id="matches-list"><div class="spinner"></div></div>
   <div style="height:8px"></div>
@@ -271,6 +366,13 @@
       <span class="progress-count" id="q-cnt">0/17</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="q-bar" style="width:0%"></div></div>
+  </div>
+  <div id="pred-last-edit" class="pred-meta"></div>
+  <div class="pred-tools">
+    <button class="chip" onclick="openQuestionSheet()"><span id="btn-q-jump"></span></button>
+    <button class="chip" onclick="openMissingSheet()"><span id="btn-q-miss"></span></button>
+    <button class="chip" onclick="fillRandomRemaining()"><span id="btn-q-rand"></span></button>
+    <button class="chip" onclick="manualDraftMenu()"><span id="btn-q-draft"></span></button>
   </div>
   <div id="q-area"></div>
   <div class="q-nav">
@@ -362,6 +464,29 @@
   </div>
 </div>
 
+<!-- ══ SHEET: QUESTIONS ═══════════════════════════════════ -->
+<div class="sheet" id="sheet-questions">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheet-q-title"></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div id="sheet-q-grid" class="q-jump-grid"></div>
+  </div>
+</div>
+
+<!-- ══ SHEET: MISSING ═════════════════════════════════════ -->
+<div class="sheet" id="sheet-missing">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheet-m-title"></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div id="sheet-m-grid" class="q-jump-grid"></div>
+    <div id="sheet-m-empty" class="empty-state" style="display:none"></div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════
 // CONFIG — set your API URL here
@@ -392,12 +517,19 @@ const TEXTS = {
     ui_rank_sub_tpl:'📈 До обгону {alias}: {gap} очк.',
     ui_pred_saved:'✅ Прогноз сохранён', ui_pred_missing:'⚠️ Нет прогноза', ui_pred_closed:'🔒 Закрыт',
     ui_deadline:'через {t}',
+    ui_filter_all:'Все', ui_filter_open:'Открытые', ui_filter_missing:'Без прогноза', ui_filter_predicted:'С прогнозом', ui_filter_finished:'Завершённые',
     ui_q_label:'Вопрос {n} из {total}', ui_q_back:'← Назад', ui_q_next:'Далее →', ui_q_save:'💾 Сохранить',
+    ui_jump_q:'Вопросы', ui_jump_missing:'Пропуски', ui_fill_rest:'🎲 Заполнить пустые', ui_draft:'Черновик',
+    ui_sheet_questions:'Перейти к вопросу', ui_sheet_missing:'Незаполненные вопросы',
+    ui_draft_found:'Найден черновик. Восстановить?', ui_draft_saved:'Черновик сохранён', ui_draft_restored:'Черновик восстановлен', ui_draft_cleared:'Черновик удалён',
+    ui_tpl_saved:'Шаблон сохранён', ui_tpl_none:'Шаблонов нет', ui_tpl_applied:'Шаблон применён',
+    ui_last_edit:'Последнее: {t}',
     ui_min_start_15_hint:'Выберите начало 15-минутного промежутка (диапазон будет вычислен автоматически).',
     ui_min_start_10_hint:'Выберите начало 10-минутного промежутка (диапазон будет вычислен автоматически).',
     ui_success_title:'Прогноз сохранён!', ui_success_sub:'Удачи на матче!',
     ui_loading:'Загрузка...', ui_error:'Ошибка загрузки', ui_retry:'Повторить',
     ui_no_score_change:'Не будет первого гола', ui_no_score_change2:'Не будет второго гола',
+    ui_ios_home_tip:'Если иконка на главном экране открывает Telegram — откройте приложение по прямой ссылке в Safari (не в Telegram), затем: Поделиться → На экран «Домой». Тогда иконка будет открывать приложение напрямую.',
     q_ht_score:'Счёт первого тайма?', q_ht_result:'Исход первого тайма?', q_ht_goals:'Голов в первом тайме?',
     q_ft_score:'Счёт второго тайма?', q_ft_result:'Исход второго тайма?', q_ft_goals:'Голов во втором тайме?',
     q_tot_score:'Итоговый счёт матча?', q_winner:'Победитель матча?', q_tot_goals:'Всего голов в матче?',
@@ -429,12 +561,19 @@ const TEXTS = {
     ui_rank_sub_tpl:'📈 {gap} pts to overtake {alias}',
     ui_pred_saved:'✅ Prediction saved', ui_pred_missing:'⚠️ No prediction', ui_pred_closed:'🔒 Closed',
     ui_deadline:'in {t}',
+    ui_filter_all:'All', ui_filter_open:'Open', ui_filter_missing:'Missing', ui_filter_predicted:'Predicted', ui_filter_finished:'Finished',
     ui_q_label:'Question {n} of {total}', ui_q_back:'← Back', ui_q_next:'Next →', ui_q_save:'💾 Save',
+    ui_jump_q:'Questions', ui_jump_missing:'Missing', ui_fill_rest:'🎲 Fill empty', ui_draft:'Draft',
+    ui_sheet_questions:'Jump to question', ui_sheet_missing:'Unanswered questions',
+    ui_draft_found:'Draft found. Restore it?', ui_draft_saved:'Draft saved', ui_draft_restored:'Draft restored', ui_draft_cleared:'Draft cleared',
+    ui_tpl_saved:'Template saved', ui_tpl_none:'No templates', ui_tpl_applied:'Template applied',
+    ui_last_edit:'Last: {t}',
     ui_min_start_15_hint:'Choose the start of the 15-minute interval (range is computed automatically).',
     ui_min_start_10_hint:'Choose the start of the 10-minute interval (range is computed automatically).',
     ui_success_title:'Prediction saved!', ui_success_sub:'Good luck with the match!',
     ui_loading:'Loading...', ui_error:'Loading error', ui_retry:'Retry',
     ui_no_score_change:'No first goal', ui_no_score_change2:'No second goal',
+    ui_ios_home_tip:'If the home screen icon opens Telegram: open the app in Safari by its direct URL (not inside Telegram), then Share → Add to Home Screen. The icon will then open the app directly.',
     q_ht_score:'First half score?', q_ht_result:'First half result?', q_ht_goals:'Goals in first half?',
     q_ft_score:'Second half score?', q_ft_result:'Second half result?', q_ft_goals:'Goals in second half?',
     q_tot_score:'Final match score?', q_winner:'Match winner?', q_tot_goals:'Total goals in match?',
@@ -466,12 +605,19 @@ const TEXTS = {
     ui_rank_sub_tpl:'📈 До обгону {alias}: {gap} очк.',
     ui_pred_saved:'✅ Прогноз збережено', ui_pred_missing:'⚠️ Немає прогнозу', ui_pred_closed:'🔒 Закрито',
     ui_deadline:'через {t}',
+    ui_filter_all:'Усі', ui_filter_open:'Відкриті', ui_filter_missing:'Без прогнозу', ui_filter_predicted:'Є прогноз', ui_filter_finished:'Завершені',
     ui_q_label:'Питання {n} з {total}', ui_q_back:'← Назад', ui_q_next:'Далі →', ui_q_save:'💾 Зберегти',
+    ui_jump_q:'Питання', ui_jump_missing:'Пропуски', ui_fill_rest:'🎲 Заповнити порожні', ui_draft:'Чернетка',
+    ui_sheet_questions:'Перейти до питання', ui_sheet_missing:'Незаповнені питання',
+    ui_draft_found:'Знайдено чернетку. Відновити?', ui_draft_saved:'Чернетку збережено', ui_draft_restored:'Чернетку відновлено', ui_draft_cleared:'Чернетку видалено',
+    ui_tpl_saved:'Шаблон збережено', ui_tpl_none:'Шаблонів немає', ui_tpl_applied:'Шаблон застосовано',
+    ui_last_edit:'Останнє: {t}',
     ui_min_start_15_hint:'Оберіть початок 15-хвилинного проміжку (діапазон обчислиться автоматично).',
     ui_min_start_10_hint:'Оберіть початок 10-хвилинного проміжку (діапазон обчислиться автоматично).',
     ui_success_title:'Прогноз збережено!', ui_success_sub:'Удачі на матчі!',
     ui_loading:'Завантаження...', ui_error:'Помилка завантаження', ui_retry:'Повторити',
     ui_no_score_change:'Не буде першого гола', ui_no_score_change2:'Не буде другого гола',
+    ui_ios_home_tip:'Якщо іконка на головному екрані відкриває Telegram — відкрийте застосунок за прямою посиланням у Safari (не в Telegram), потім: Поділитися → На екран «Дім». Тоді іконка відкриватиме застосунок напряму.',
     q_ht_score:'Рахунок першого тайму?', q_ht_result:'Підсумок першого тайму?', q_ht_goals:'Голів у першому таймі?',
     q_ft_score:'Рахунок другого тайму?', q_ft_result:'Підсумок другого тайму?', q_ft_goals:'Голів у другому таймі?',
     q_tot_score:'Підсумковий рахунок матчу?', q_winner:'Переможець матчу?', q_tot_goals:'Всього голів у матчі?',
@@ -525,6 +671,18 @@ async function apiPost(path, body) {
   return res.json();
 }
 
+async function apiDelete(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: { 'X-Init-Data': TG_INIT },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `API ${res.status}`);
+  }
+  return res.json();
+}
+
 function buildZeroAnswers() {
   return {
     q1: '0:0',
@@ -552,6 +710,81 @@ function buildZeroAnswers() {
 // ══════════════════════════════════════════════════════════
 let matchesCache = null;
 let squadsCache  = {};
+let matchesFilter = 'all'; // all | open | missing | predicted | finished
+
+function setMatchesFilter(f) {
+  matchesFilter = f;
+  renderMatchesFilters();
+  renderMatchesList();
+}
+
+function renderMatchesFilters() {
+  const el = document.getElementById('matches-filters');
+  if (!el) return;
+  const chips = [
+    { id:'all', label:t('ui_filter_all') },
+    { id:'open', label:t('ui_filter_open') },
+    { id:'missing', label:t('ui_filter_missing') },
+    { id:'predicted', label:t('ui_filter_predicted') },
+    { id:'finished', label:t('ui_filter_finished') },
+  ];
+  el.innerHTML = chips.map(c =>
+    `<button class="chip ${matchesFilter===c.id?'active':''}" onclick="setMatchesFilter('${c.id}')">${c.label}</button>`
+  ).join('');
+}
+
+function _filteredMatches(items) {
+  if (!Array.isArray(items)) return [];
+  switch (matchesFilter) {
+    case 'open': return items.filter(m => m.open);
+    case 'missing': return items.filter(m => m.open && !m.predicted);
+    case 'predicted': return items.filter(m => m.predicted);
+    case 'finished': return items.filter(m => m.is_finished);
+    default: return items;
+  }
+}
+
+function renderMatchesList() {
+  const container = document.getElementById('matches-list');
+  if (!container) return;
+  const matches = _filteredMatches(matchesCache || []);
+  if (!matches.length) {
+    container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+    return;
+  }
+  container.innerHTML = matches.map(m => {
+    const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+    const cls = m.predicted ? 'predicted' : (!m.open ? 'closed' : '');
+    const statusText = m.predicted ? t('ui_pred_saved')
+                     : !m.open     ? t('ui_pred_closed')
+                                   : t('ui_pred_missing');
+    const statusCls  = m.predicted ? 'done' : 'missing';
+    let deadlineHtml = '';
+    if (m.open && !m.predicted) {
+      const diff = calcCountdown(m.kickoff_time);
+      if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
+    }
+    const closedClick = !m.open ? `openMatchPreds(${m.match_id})` : '';
+    const quickBtn = m.open
+      ? `<button class="quick-btn" onclick="event.stopPropagation(); quickZeroMatch(${m.match_id})">${t('ui_quick_zero_one')}</button>`
+      : '';
+    return `
+      <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : closedClick}">
+        <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
+        <div class="teams-row">
+          <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
+          <div class="score-box"><div class="score-vs">VS</div></div>
+          <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
+        </div>
+        <div class="match-footer">
+          <div class="pred-status ${statusCls}">${statusText}</div>
+          ${!m.open ? `<div class="deadline-text">${t('ui_view_participants')}</div>` : ''}
+          ${quickBtn}
+          ${deadlineHtml}
+        </div>
+      </div>`;
+  }).join('');
+}
 
 // ══════════════════════════════════════════════════════════
 // Matches screen
@@ -561,6 +794,7 @@ async function loadMatches() {
   try {
     const matches = await apiGet('/api/matches');
     matchesCache = matches;
+    renderMatchesFilters();
     const actions = document.getElementById('matches-actions');
     if (actions) {
       const openMatches = matches.filter(m => m.open);
@@ -572,38 +806,7 @@ async function loadMatches() {
       container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
       return;
     }
-    container.innerHTML = matches.map(m => {
-      const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
-      const cls = m.predicted ? 'predicted' : (!m.open ? 'closed' : '');
-      const statusText = m.predicted ? t('ui_pred_saved')
-                       : !m.open     ? t('ui_pred_closed')
-                                     : t('ui_pred_missing');
-      const statusCls  = m.predicted ? 'done' : 'missing';
-      let deadlineHtml = '';
-      if (m.open && !m.predicted) {
-        const diff = calcCountdown(m.kickoff_time);
-        if (diff) deadlineHtml = `<div class="deadline-text">${t('ui_deadline',{t:'<span class="countdown">'+diff+'</span>'})}</div>`;
-      }
-      const closedClick = !m.open ? `openMatchPreds(${m.match_id})` : '';
-      const quickBtn = m.open
-        ? `<button class="quick-btn" onclick="event.stopPropagation(); quickZeroMatch(${m.match_id})">${t('ui_quick_zero_one')}</button>`
-        : '';
-      return `
-        <div class="match-card ${cls}" onclick="${m.open ? `openPredict(${m.match_id})` : closedClick}">
-          <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
-          <div class="teams-row">
-            <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
-            <div class="score-box"><div class="score-vs">VS</div></div>
-            <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
-          </div>
-          <div class="match-footer">
-            <div class="pred-status ${statusCls}">${statusText}</div>
-            ${!m.open ? `<div class="deadline-text">${t('ui_view_participants')}</div>` : ''}
-            ${quickBtn}
-            ${deadlineHtml}
-          </div>
-        </div>`;
-    }).join('');
+    renderMatchesList();
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadMatches()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
   }
@@ -664,6 +867,298 @@ function calcCountdown(kickoffStr) {
 let currentMatch = null;
 let currentSquads = { squad_1: [], squad_2: [] };
 let questions = [], answers = {}, scoreVals = {}, currentQ = 0;
+let draftSaveTimer = null;
+let serverDraftTimer = null;
+
+function _draftKey(matchId) { return `totoshka_draft_${matchId}`; }
+function _nowIso() { return new Date().toISOString(); }
+function _fmtShort(ts) {
+  try {
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return '';
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    return `${hh}:${mm}`;
+  } catch (_) { return ''; }
+}
+
+function setLastEdit(tsIso) {
+  const el = document.getElementById('pred-last-edit');
+  if (!el) return;
+  const f = _fmtShort(tsIso);
+  el.textContent = f ? t('ui_last_edit', { t: f }) : '';
+}
+
+function getCurrentPayload() {
+  const payload = {};
+  for (let i = 0; i < 17; i++) payload[questions[i]?.key || `q${i+1}`] = answers[i] ?? '';
+  return payload;
+}
+
+function saveDraft(matchId, silent = true) {
+  try {
+    const data = {
+      v: 1,
+      ts: _nowIso(),
+      match_id: matchId,
+      payload: getCurrentPayload(),
+    };
+    localStorage.setItem(_draftKey(matchId), JSON.stringify(data));
+    setLastEdit(data.ts);
+    if (!silent) alert(t('ui_draft_saved'));
+  } catch (_) {}
+}
+
+function scheduleDraftSave() {
+  if (!currentMatch) return;
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => saveDraft(currentMatch.match_id, true), 450);
+  // сервер — чуть реже
+  if (serverDraftTimer) clearTimeout(serverDraftTimer);
+  serverDraftTimer = setTimeout(() => saveDraftServer(currentMatch.match_id), 900);
+}
+
+function loadDraft(matchId) {
+  try {
+    const raw = localStorage.getItem(_draftKey(matchId));
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !obj.payload) return null;
+    return obj;
+  } catch (_) { return null; }
+}
+
+function clearDraft(matchId) {
+  try { localStorage.removeItem(_draftKey(matchId)); } catch (_) {}
+}
+
+async function loadDraftServer(matchId) {
+  try {
+    const res = await apiGet(`/api/drafts/${matchId}`);
+    return res?.draft || null;
+  } catch (_) { return null; }
+}
+
+async function saveDraftServer(matchId) {
+  try {
+    await apiPost(`/api/drafts/${matchId}`, getCurrentPayload());
+  } catch (_) {
+    // тихо: сеть/сервер может быть временно недоступен
+  }
+}
+
+async function clearDraftServer(matchId) {
+  try { await apiDelete(`/api/drafts/${matchId}`); } catch (_) {}
+}
+
+function _tplKey() { return 'totoshka_templates_v1'; }
+function loadTemplates() {
+  try {
+    const raw = localStorage.getItem(_tplKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { return []; }
+}
+function saveTemplates(arr) {
+  try { localStorage.setItem(_tplKey(), JSON.stringify(arr)); } catch (_) {}
+}
+function saveTemplate(name, payload) {
+  const arr = loadTemplates();
+  const clean = String(name || '').trim().slice(0, 40);
+  const nm = clean || `tpl_${arr.length+1}`;
+  arr.unshift({ name: nm, ts: _nowIso(), payload });
+  saveTemplates(arr.slice(0, 20));
+}
+
+async function loadTemplatesServer(limit = 20) {
+  try {
+    const res = await apiGet(`/api/templates?limit=${encodeURIComponent(String(limit))}`);
+    return Array.isArray(res?.items) ? res.items : [];
+  } catch (_) { return []; }
+}
+
+async function saveTemplateServer(name, payload) {
+  try {
+    const res = await apiPost('/api/templates', { name, payload });
+    return res?.template_id || null;
+  } catch (_) { return null; }
+}
+function applyTemplateToEmpty(payload) {
+  if (!payload) return;
+  for (let i = 0; i < questions.length; i++) {
+    const cur = answers[i];
+    if (cur !== undefined && String(cur).trim() !== '') continue;
+    const key = `q${i+1}`;
+    const v = payload[key];
+    if (v === undefined || v === null || String(v).trim() === '') continue;
+    if (questions[i].type === 'score') {
+      const parts = String(v).split(':');
+      let g1 = parseInt(parts[0], 10);
+      let g2 = parseInt(parts[1] ?? '0', 10);
+      if (Number.isNaN(g1)) g1 = 0;
+      if (Number.isNaN(g2)) g2 = 0;
+      scoreVals[i] = [g1, g2];
+      answers[i] = `${g1}:${g2}`;
+    } else {
+      answers[i] = String(v);
+    }
+  }
+}
+
+function applyPayloadToAnswers(payload) {
+  if (!payload) return;
+  for (let i = 0; i < questions.length; i++) {
+    const key = `q${i + 1}`;
+    const raw = payload[key];
+    if (raw === undefined || raw === null || raw === '') continue;
+    if (questions[i].type === 'score') {
+      const parts = String(raw).split(':');
+      let g1 = parseInt(parts[0], 10);
+      let g2 = parseInt(parts[1] ?? '0', 10);
+      if (Number.isNaN(g1)) g1 = 0;
+      if (Number.isNaN(g2)) g2 = 0;
+      scoreVals[i] = [g1, g2];
+      answers[i] = `${g1}:${g2}`;
+    } else {
+      answers[i] = String(raw);
+    }
+  }
+}
+
+function closeSheets() {
+  document.getElementById('sheet-questions')?.classList.remove('show');
+  document.getElementById('sheet-missing')?.classList.remove('show');
+}
+
+function _buildQJumpBtn(i) {
+  const isDone = answers[i] !== undefined && String(answers[i]).trim() !== '';
+  const cls = isDone ? 'done' : 'miss';
+  return `<button class="q-jump ${cls}" onclick="jumpToQuestion(${i}); closeSheets()">${i+1}</button>`;
+}
+
+function openQuestionSheet() {
+  if (!currentMatch || !questions.length) return;
+  document.getElementById('sheet-q-title').textContent = t('ui_sheet_questions');
+  document.getElementById('sheet-q-grid').innerHTML = questions.map((_, i) => _buildQJumpBtn(i)).join('');
+  document.getElementById('sheet-questions').classList.add('show');
+  document.getElementById('sheet-missing').classList.remove('show');
+}
+
+function openMissingSheet() {
+  if (!currentMatch || !questions.length) return;
+  document.getElementById('sheet-m-title').textContent = t('ui_sheet_missing');
+  const missing = [];
+  for (let i = 0; i < questions.length; i++) {
+    const v = answers[i];
+    if (v === undefined || String(v).trim() === '') missing.push(i);
+  }
+  const grid = document.getElementById('sheet-m-grid');
+  const empty = document.getElementById('sheet-m-empty');
+  if (!missing.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = t('ui_pred_saved');
+  } else {
+    empty.style.display = 'none';
+    grid.innerHTML = missing.map(i => _buildQJumpBtn(i)).join('');
+  }
+  document.getElementById('sheet-missing').classList.add('show');
+  document.getElementById('sheet-questions').classList.remove('show');
+}
+
+function jumpToQuestion(idx) {
+  if (typeof idx !== 'number') idx = parseInt(String(idx), 10);
+  if (Number.isNaN(idx) || idx < 0 || idx >= questions.length) return;
+  currentQ = idx;
+  renderQuestion();
+}
+
+function _pick(arr) {
+  if (!arr || !arr.length) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function _randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function fillRandomRemaining() {
+  if (!currentMatch || !questions.length) return;
+  for (let i = 0; i < questions.length; i++) {
+    const cur = answers[i];
+    if (cur !== undefined && String(cur).trim() !== '') continue;
+    const q = questions[i];
+    if (q.type === 'score') {
+      const a = _randInt(0, 4);
+      const b = _randInt(0, 4);
+      scoreVals[i] = [a, b];
+      answers[i] = `${a}:${b}`;
+    } else if (q.type === 'minute_start_15' || q.type === 'minute_start_10') {
+      // 20% шанс "не будет гола", иначе случайный старт
+      if (Math.random() < 0.2) {
+        answers[i] = q.noGoalLabel;
+      } else {
+        const span = q.type === 'minute_start_15' ? 14 : 9;
+        const start = _pick(q.starts);
+        const end = Math.min(parseInt(start, 10) + span, 90);
+        answers[i] = `${start}-${end}`;
+      }
+    } else {
+      answers[i] = _pick(q.opts);
+    }
+  }
+  scheduleDraftSave();
+  refreshProgress();
+  renderQuestion();
+  window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+}
+
+async function manualDraftMenu() {
+  if (!currentMatch) return;
+  const matchId = currentMatch.match_id;
+  const has = !!loadDraft(matchId);
+  const msg = has ? `${t('ui_draft')}: OK` : `${t('ui_draft')}: —`;
+  const doRestore = has && window.confirm(t('ui_draft_found'));
+  if (doRestore) {
+    const d = loadDraft(matchId);
+    if (d?.payload) {
+      applyPayloadToAnswers(d.payload);
+      setLastEdit(d.ts || _nowIso());
+      refreshProgress();
+      renderQuestion();
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+      return;
+    }
+  }
+  const choice = window.prompt(`${msg}\n1 - Save draft\n2 - Clear draft\n3 - Save template\n4 - Apply template`, '1');
+  if (choice === '2') {
+    clearDraft(matchId);
+    setLastEdit('');
+    clearDraftServer(matchId);
+    alert(t('ui_draft_cleared'));
+  } else if (choice === '1') {
+    saveDraft(matchId, false);
+    await saveDraftServer(matchId);
+  } else if (choice === '3') {
+    const name = window.prompt('Template name', '');
+    saveTemplate(name, getCurrentPayload());
+    await saveTemplateServer(name, getCurrentPayload());
+    alert(t('ui_tpl_saved'));
+  } else if (choice === '4') {
+    let tpls = await loadTemplatesServer(20);
+    if (!tpls.length) tpls = loadTemplates();
+    if (!tpls.length) return alert(t('ui_tpl_none'));
+    const list = tpls.map((x, i) => `${i+1}. ${x.name}`).join('\n');
+    const pick = window.prompt(`Pick template:\n${list}`, '1');
+    const idx = parseInt(String(pick || '1'), 10) - 1;
+    if (Number.isNaN(idx) || idx < 0 || idx >= tpls.length) return;
+    applyTemplateToEmpty(tpls[idx].payload);
+    scheduleDraftSave();
+    refreshProgress();
+    renderQuestion();
+    alert(t('ui_tpl_applied'));
+  }
+}
 
 function buildQuestions(t1, t2) {
   const s1 = currentSquads.squad_1 || [];
@@ -702,6 +1197,13 @@ async function openPredict(matchId) {
 
   currentMatch = m;
   answers = {}; scoreVals = {}; currentQ = 0;
+  closeSheets();
+  setLastEdit('');
+
+  document.getElementById('btn-q-jump').textContent = t('ui_jump_q');
+  document.getElementById('btn-q-miss').textContent = t('ui_jump_missing');
+  document.getElementById('btn-q-rand').textContent = t('ui_fill_rest');
+  document.getElementById('btn-q-draft').textContent = t('ui_draft');
 
   document.getElementById('pf1').textContent = m.flag_1;
   document.getElementById('pf2').textContent = m.flag_2;
@@ -726,28 +1228,24 @@ async function openPredict(matchId) {
 
     const pred = detail?.prediction || null;
     if (pred) {
-      for (let i = 0; i < questions.length; i++) {
-        const key = `q${i + 1}`;
-        const raw = pred[key];
-        if (raw === undefined || raw === null || raw === '') continue;
-        if (questions[i].type === 'score') {
-          const parts = String(raw).split(':');
-          let g1 = parseInt(parts[0], 10);
-          let g2 = parseInt(parts[1] ?? '0', 10);
-          if (Number.isNaN(g1)) g1 = 0;
-          if (Number.isNaN(g2)) g2 = 0;
-          scoreVals[i] = [g1, g2];
-          answers[i] = `${g1}:${g2}`;
-        } else if (questions[i].type === 'minute_start_15' || questions[i].type === 'minute_start_10') {
-          answers[i] = String(raw);
-        } else {
-          answers[i] = String(raw);
-        }
-      }
+      applyPayloadToAnswers(pred);
     }
   } catch (_) {
     currentSquads = { squad_1: [], squad_2: [] };
     questions = buildQuestions(m.team_1, m.team_2);
+  }
+
+  // Черновик: сначала серверный (между устройствами), затем локальный фоллбэк
+  const [sd, ld] = await Promise.all([loadDraftServer(matchId), Promise.resolve(loadDraft(matchId))]);
+  const sTs = sd?.updated_at ? new Date(sd.updated_at).getTime() : 0;
+  const lTs = ld?.ts ? new Date(ld.ts).getTime() : 0;
+  const best = (sTs && sTs >= lTs) ? { payload: sd?.payload, ts: sd?.updated_at } : { payload: ld?.payload, ts: ld?.ts };
+  if (best?.payload) {
+    const ok = window.confirm(t('ui_draft_found'));
+    if (ok) {
+      applyPayloadToAnswers(best.payload);
+      setLastEdit(best.ts || _nowIso());
+    }
   }
 
   renderQuestion();
@@ -849,6 +1347,7 @@ function chScore(qi, side, delta) {
   document.getElementById(`sv${qi}${side}`).textContent = scoreVals[qi][side];
   answers[qi] = `${scoreVals[qi][0]}:${scoreVals[qi][1]}`;
   refreshProgress();
+  scheduleDraftSave();
   window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
 }
 
@@ -857,6 +1356,7 @@ function selectOpt(qi, btn) {
   btn.classList.add('selected');
   answers[qi] = btn.textContent.trim();
   refreshProgress();
+  scheduleDraftSave();
   window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
 }
 
@@ -871,6 +1371,7 @@ function onMinuteStartChange(qi, span) {
     answers[qi] = questions[qi].noGoalLabel;
   }
   refreshProgress();
+  scheduleDraftSave();
   window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
 }
 
@@ -884,6 +1385,7 @@ function selectMinuteNoGoal(qi, btn, noGoalLabel) {
   if (sel) sel.value = '';
   answers[qi] = noGoalLabel;
   refreshProgress();
+  scheduleDraftSave();
   window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
 }
 
@@ -922,6 +1424,9 @@ async function savePrediction() {
   try {
     await apiPost(`/api/predictions/${currentMatch.match_id}`, payload);
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    clearDraft(currentMatch.match_id);
+    clearDraftServer(currentMatch.match_id);
+    setLastEdit(_nowIso());
     document.getElementById('sov').classList.add('show');
     setTimeout(() => {
       document.getElementById('sov').classList.remove('show');
@@ -1161,7 +1666,8 @@ async function loadProfile() {
           <div class="rank-title">${t('ui_rank_title')}</div>
           <div class="rank-sub">${rankSub}</div>
         </div>
-      </div>`;
+      </div>
+      ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="ios-tip">📱 ${t('ui_ios_home_tip')}</div>` : ''}`;
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadProfile()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
   }
