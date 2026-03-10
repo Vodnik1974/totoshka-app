@@ -396,6 +396,51 @@
     transform: translateX(20px);
   }
 
+  .profile-edit-btn {
+    margin: 0 16px 12px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color: var(--tg-text);
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .profile-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .profile-input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.16);
+    background: rgba(255,255,255,.04);
+    color: var(--tg-text);
+    font-size: 13px;
+  }
+  .profile-textarea {
+    min-height: 60px;
+    resize: vertical;
+  }
+  .profile-save-btn {
+    align-self: flex-end;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: none;
+    background: var(--green);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
 </head>
@@ -624,6 +669,12 @@ const TEXTS = {
     ui_settings_r1h:'За 1 час',
     ui_settings_r15:'За 15 минут',
     ui_settings_muted:'Тихий режим',
+    ui_profile_edit:'Редактировать профиль',
+    ui_profile_alias:'Имя / ник',
+    ui_profile_email:'Email (по желанию)',
+    ui_profile_exp:'Опыт игры',
+    ui_profile_clan:'Клан',
+    ui_profile_saved:'Профиль сохранён',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -676,6 +727,12 @@ const TEXTS = {
     ui_settings_r1h:'1h before',
     ui_settings_r15:'15m before',
     ui_settings_muted:'Quiet mode',
+    ui_profile_edit:'Edit profile',
+    ui_profile_alias:'Name / nick',
+    ui_profile_email:'Email (optional)',
+    ui_profile_exp:'Experience',
+    ui_profile_clan:'Clan',
+    ui_profile_saved:'Profile saved',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -728,6 +785,12 @@ const TEXTS = {
     ui_settings_r1h:'За 1 годину',
     ui_settings_r15:'За 15 хвилин',
     ui_settings_muted:'Тихий режим',
+    ui_profile_edit:'Редагувати профіль',
+    ui_profile_alias:'Імʼя / нік',
+    ui_profile_email:'Email (за бажанням)',
+    ui_profile_exp:'Досвід гри',
+    ui_profile_clan:'Клан',
+    ui_profile_saved:'Профіль збережено',
   },
 };
 
@@ -1748,9 +1811,10 @@ async function loadLeaderboard() {
 async function loadProfile() {
   const container = document.getElementById('profile-content');
   try {
-    const [p, s] = await Promise.all([
+    const [p, s, ps] = await Promise.all([
       apiGet('/api/profile'),
       apiGet('/api/settings').catch(() => null),
+      apiGet('/api/profile-settings').catch(() => null),
     ]);
     const initial = (p.alias || '?')[0].toUpperCase();
     const streakDisplay = p.streak || '—';
@@ -1764,6 +1828,12 @@ async function loadProfile() {
     const r1 = rem.remind_1h ? 1 : 0;
     const r15 = rem.remind_15m ? 1 : 0;
     const muted = rem.muted ? 1 : 0;
+
+    const prof = ps?.profile || {};
+    const pAlias = prof.alias || p.alias || '';
+    const pEmail = prof.email || '';
+    const pExp = prof.experience || '';
+    const pClan = prof.clan || (p.clan || '');
 
     const tzOptions = [
       { v: 'Europe/Kyiv', label: 'Europe/Kyiv' },
@@ -1798,7 +1868,32 @@ async function loadProfile() {
         </div>
       </div>
       ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="ios-tip">📱 ${t('ui_ios_home_tip')}</div>` : ''}
-      <div class="settings-section">
+      <button class="profile-edit-btn" onclick="toggleProfileEdit()">
+        ✏️ <span>${t('ui_profile_edit')}</span>
+      </button>
+      <div class="settings-section" id="profile-settings">
+        <div class="settings-card" id="profile-edit-block" style="display:none">
+          <div class="settings-title">${t('ui_profile_edit')}</div>
+          <div class="profile-edit-form">
+            <label>
+              <div class="settings-label">${t('ui_profile_alias')}</div>
+              <input class="profile-input" id="pf-alias" value="${esc(pAlias)}" />
+            </label>
+            <label>
+              <div class="settings-label">${t('ui_profile_email')}</div>
+              <input class="profile-input" id="pf-email" value="${esc(pEmail)}" />
+            </label>
+            <label>
+              <div class="settings-label">${t('ui_profile_exp')}</div>
+              <textarea class="profile-input profile-textarea" id="pf-exp">${esc(pExp)}</textarea>
+            </label>
+            <label>
+              <div class="settings-label">${t('ui_profile_clan')}</div>
+              <input class="profile-input" id="pf-clan" value="${esc(pClan)}" />
+            </label>
+            <button class="profile-save-btn" onclick="saveProfileSettings()">${t('ui_q_save')}</button>
+          </div>
+        </div>
         <div class="settings-card">
           <div class="settings-title">${t('ui_settings_title')}</div>
           <div class="settings-row">
@@ -1860,6 +1955,37 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
   return d.innerHTML;
+}
+
+function toggleProfileEdit() {
+  const block = document.getElementById('profile-edit-block');
+  if (!block) return;
+  const isHidden = block.style.display === 'none' || !block.style.display;
+  block.style.display = isHidden ? 'block' : 'none';
+}
+
+async function saveProfileSettings() {
+  const aliasEl = document.getElementById('pf-alias');
+  const emailEl = document.getElementById('pf-email');
+  const expEl = document.getElementById('pf-exp');
+  const clanEl = document.getElementById('pf-clan');
+  if (!aliasEl || !emailEl || !expEl || !clanEl) return;
+  const payload = {
+    alias: aliasEl.value || '',
+    email: emailEl.value || '',
+    experience: expEl.value || '',
+    clan: clanEl.value || '',
+  };
+  try {
+    await apiPut('/api/profile-settings', payload);
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success');
+    alert(t('ui_profile_saved'));
+    // Обновим профиль целиком
+    loadProfile();
+  } catch (e) {
+    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error');
+    alert(t('ui_error'));
+  }
 }
 
 async function toggleReminder(key) {
