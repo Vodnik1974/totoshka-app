@@ -462,6 +462,25 @@
     margin: 4px 0;
   }
 
+  .lb-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 8px;
+  }
+  .lb-tab {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.06);
+    cursor: pointer;
+  }
+  .lb-tab.active {
+    background: rgba(45,189,110,.16);
+    border-color: rgba(45,189,110,.6);
+  }
+
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
 </head>
@@ -545,6 +564,10 @@
 <div id="screen-leaderboard" class="screen">
   <div class="header">
     <div class="header-title" id="lb-hdr-title"></div>
+  </div>
+  <div class="lb-tabs">
+    <button class="lb-tab active" id="lb-tab-players" onclick="setLeaderboardMode('players')"></button>
+    <button class="lb-tab" id="lb-tab-clans" onclick="setLeaderboardMode('clans')"></button>
   </div>
   <div id="lb-content"><div class="spinner"></div></div>
   <div style="height:8px"></div>
@@ -707,6 +730,10 @@ const TEXTS = {
     ui_profile_saved:'Профиль сохранён',
     ui_help_title:'Помощь',
     ui_help_btn:'Как играть',
+    ui_lb_tab_players:'Игроки',
+    ui_lb_tab_clans:'Кланы',
+    ui_lb_clan_hdr:'РЕЙТИНГ КЛАНОВ',
+    ui_lb_clan_members:'участников',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -767,6 +794,10 @@ const TEXTS = {
     ui_profile_saved:'Profile saved',
     ui_help_title:'Help',
     ui_help_btn:'How to play',
+    ui_lb_tab_players:'Players',
+    ui_lb_tab_clans:'Clans',
+    ui_lb_clan_hdr:'CLAN RANKINGS',
+    ui_lb_clan_members:'members',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -827,6 +858,10 @@ const TEXTS = {
     ui_profile_saved:'Профіль збережено',
     ui_help_title:'Допомога',
     ui_help_btn:'Як грати',
+    ui_lb_tab_players:'Гравці',
+    ui_lb_tab_clans:'Клани',
+    ui_lb_clan_hdr:'РЕЙТИНГ КЛАНІВ',
+    ui_lb_clan_members:'учасників',
   },
 };
 
@@ -1789,53 +1824,102 @@ function openPredictionDetail(matchId) {
 }
 
 // ══════════════════════════════════════════════════════════
-// Leaderboard screen
+// Leaderboard screen (players + clans)
 // ══════════════════════════════════════════════════════════
+let LB_MODE = 'players'; // 'players' | 'clans'
+
+function setLeaderboardMode(mode) {
+  LB_MODE = mode === 'clans' ? 'clans' : 'players';
+  const pBtn = document.getElementById('lb-tab-players');
+  const cBtn = document.getElementById('lb-tab-clans');
+  if (pBtn && cBtn) {
+    pBtn.classList.toggle('active', LB_MODE === 'players');
+    cBtn.classList.toggle('active', LB_MODE === 'clans');
+    pBtn.textContent = t('ui_lb_tab_players');
+    cBtn.textContent = t('ui_lb_tab_clans');
+  }
+  loadLeaderboard();
+}
+
+async function loadLeaderboardPlayers(container) {
+  const data = await apiGet('/api/leaderboard');
+  if (!data.length) {
+    container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+    return;
+  }
+  const medals = ['🥇','🥈','🥉'];
+  const top3 = data.slice(0,3);
+  const rest = data.slice(3);
+
+  const podiumOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
+  const podiumClasses = top3.length >= 3 ? ['second','first','third'] : top3.map((_,i)=>i===0?'first':'');
+
+  let html = '<div class="lb-podium">';
+  podiumOrder.forEach((p, i) => {
+    const cls = podiumClasses[i] || '';
+    const medal = medals[data.indexOf(p)] || '';
+    html += `
+      <div class="podium-item ${cls}">
+        <div class="podium-medal">${medal}</div>
+        <div class="podium-alias">${esc(p.alias)}</div>
+        <div class="podium-pts">${p.points}</div>
+        <div class="podium-pts-label">${t('ui_pts')}</div>
+      </div>`;
+  });
+  html += '</div><div class="lb-list">';
+
+  rest.forEach(p => {
+    const meClass = p.is_me ? ' me' : '';
+    const initial = (p.alias || '?')[0].toUpperCase();
+    html += `
+      <div class="lb-row${meClass}">
+        <div class="lb-rank">${p.rank}</div>
+        <div class="lb-avatar">${initial}</div>
+        <div class="lb-name">
+          <div class="lb-alias">${esc(p.alias)}${p.is_me ? ' ('+t('ui_nav_profile')+')' : ''}</div>
+          <div class="lb-clan">${esc(p.clan || '')}</div>
+        </div>
+        <div class="lb-score">${p.points}</div>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+async function loadLeaderboardClans(container) {
+  const data = await apiGet('/api/clan-leaderboard');
+  if (!data.length) {
+    container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+    return;
+  }
+  let html = '<div class="lb-list">';
+  data.forEach(row => {
+    html += `
+      <div class="lb-row">
+        <div class="lb-rank">${row.rank}</div>
+        <div class="lb-name">
+          <div class="lb-alias">${esc(row.clan)}</div>
+          <div class="lb-clan">${row.members} ${t('ui_lb_clan_members')}</div>
+        </div>
+        <div class="lb-score">${row.avg_score}</div>
+      </div>`;
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 async function loadLeaderboard() {
   const container = document.getElementById('lb-content');
+  if (!container) return;
+  container.innerHTML = '<div class="spinner"></div>';
   try {
-    const data = await apiGet('/api/leaderboard');
-    if (!data.length) {
-      container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
-      return;
+    if (LB_MODE === 'clans') {
+      document.getElementById('lb-hdr-title').textContent = t('ui_lb_clan_hdr');
+      await loadLeaderboardClans(container);
+    } else {
+      document.getElementById('lb-hdr-title').textContent = t('ui_lb_hdr');
+      await loadLeaderboardPlayers(container);
     }
-    const medals = ['🥇','🥈','🥉'];
-    const top3 = data.slice(0,3);
-    const rest = data.slice(3);
-
-    const podiumOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
-    const podiumClasses = top3.length >= 3 ? ['second','first','third'] : top3.map((_,i)=>i===0?'first':'');
-
-    let html = '<div class="lb-podium">';
-    podiumOrder.forEach((p, i) => {
-      const cls = podiumClasses[i] || '';
-      const medal = medals[data.indexOf(p)] || '';
-      html += `
-        <div class="podium-item ${cls}">
-          <div class="podium-medal">${medal}</div>
-          <div class="podium-alias">${esc(p.alias)}</div>
-          <div class="podium-pts">${p.points}</div>
-          <div class="podium-pts-label">${t('ui_pts')}</div>
-        </div>`;
-    });
-    html += '</div><div class="lb-list">';
-
-    rest.forEach(p => {
-      const meClass = p.is_me ? ' me' : '';
-      const initial = (p.alias || '?')[0].toUpperCase();
-      html += `
-        <div class="lb-row${meClass}">
-          <div class="lb-rank">${p.rank}</div>
-          <div class="lb-avatar">${initial}</div>
-          <div class="lb-name">
-            <div class="lb-alias">${esc(p.alias)}${p.is_me ? ' ('+t('ui_nav_profile')+')' : ''}</div>
-            <div class="lb-clan">${esc(p.clan || '')}</div>
-          </div>
-          <div class="lb-score">${p.points}</div>
-        </div>`;
-    });
-    html += '</div>';
-    container.innerHTML = html;
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadLeaderboard()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
   }
