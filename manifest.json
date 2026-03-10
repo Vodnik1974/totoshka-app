@@ -1,0 +1,24 @@
+{
+  "name": "Тотошка ЧМ 2026",
+  "short_name": "Тотошка",
+  "description": "Прогнозы на матчи ЧМ по футболу 2026",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17212b",
+  "theme_color": "#2dbd6e",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
