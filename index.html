@@ -1235,17 +1235,14 @@ async function openPredict(matchId) {
     questions = buildQuestions(m.team_1, m.team_2);
   }
 
-  // Черновик: сначала серверный (между устройствами), затем локальный фоллбэк
+  // Черновик: сначала серверный (между устройствами), затем локальный фоллбэк — без лишних вопросов
   const [sd, ld] = await Promise.all([loadDraftServer(matchId), Promise.resolve(loadDraft(matchId))]);
   const sTs = sd?.updated_at ? new Date(sd.updated_at).getTime() : 0;
   const lTs = ld?.ts ? new Date(ld.ts).getTime() : 0;
   const best = (sTs && sTs >= lTs) ? { payload: sd?.payload, ts: sd?.updated_at } : { payload: ld?.payload, ts: ld?.ts };
   if (best?.payload) {
-    const ok = window.confirm(t('ui_draft_found'));
-    if (ok) {
-      applyPayloadToAnswers(best.payload);
-      setLastEdit(best.ts || _nowIso());
-    }
+    applyPayloadToAnswers(best.payload);
+    setLastEdit(best.ts || _nowIso());
   }
 
   renderQuestion();
