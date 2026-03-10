@@ -496,6 +496,8 @@
   <div id="matches-filters" class="filter-bar"></div>
   <div id="matches-actions" class="quick-bar"></div>
   <div id="matches-list"><div class="spinner"></div></div>
+  <div class="section-label" style="margin-top:8px" id="lbl-started"></div>
+  <div id="started-list"><div class="spinner"></div></div>
   <div style="height:8px"></div>
 </div>
 
@@ -734,6 +736,8 @@ const TEXTS = {
     ui_lb_tab_clans:'Кланы',
     ui_lb_clan_hdr:'РЕЙТИНГ КЛАНОВ',
     ui_lb_clan_members:'участников',
+    ui_top5_btn:'Прогнозы топ-5',
+    ui_started_title:'Матчи в процессе',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -798,6 +802,8 @@ const TEXTS = {
     ui_lb_tab_clans:'Clans',
     ui_lb_clan_hdr:'CLAN RANKINGS',
     ui_lb_clan_members:'members',
+    ui_top5_btn:'Top-5 predictions',
+    ui_started_title:'Matches in progress',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -862,6 +868,8 @@ const TEXTS = {
     ui_lb_tab_clans:'Клани',
     ui_lb_clan_hdr:'РЕЙТИНГ КЛАНІВ',
     ui_lb_clan_members:'учасників',
+    ui_top5_btn:'Прогнози топ-5',
+    ui_started_title:'Матчі в процесі',
   },
 };
 
@@ -1037,6 +1045,7 @@ function renderMatchesList() {
 // ══════════════════════════════════════════════════════════
 async function loadMatches() {
   const container = document.getElementById('matches-list');
+  const startedContainer = document.getElementById('started-list');
   try {
     const matches = await apiGet('/api/matches');
     matchesCache = matches;
@@ -1050,9 +1059,35 @@ async function loadMatches() {
     }
     if (!matches.length) {
       container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
-      return;
+    } else {
+      renderMatchesList();
     }
-    renderMatchesList();
+
+    // Загрузим матчи, которые уже идут / завершены (для ссылки на прогнозы участников)
+    if (startedContainer) {
+      try {
+        const started = await apiGet('/api/started-matches?limit=20&offset=0');
+        const items = started.items || [];
+        if (!items.length) {
+          startedContainer.innerHTML = `<div class="empty-state" style="padding:8px 16px 0">${t('pred_no_matches')}</div>`;
+        } else {
+          startedContainer.innerHTML = items.map(m => {
+            const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+            return `
+              <div class="match-card closed" onclick="openMatchPreds(${m.match_id})">
+                <div class="match-meta"><span class="match-stage">⚽</span><span class="match-time">${timeStr}</span></div>
+                <div class="teams-row">
+                  <div class="team"><div class="team-flag">${m.flag_1}</div><div class="team-name">${m.team_1}</div></div>
+                  <div class="score-box"><div class="score-vs">VS</div></div>
+                  <div class="team"><div class="team-flag">${m.flag_2}</div><div class="team-name">${m.team_2}</div></div>
+                </div>
+              </div>`;
+          }).join('');
+        }
+      } catch (_) {
+        startedContainer.innerHTML = `<div class="empty-state">${t('ui_error')}</div>`;
+      }
+    }
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadMatches()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
   }
@@ -1761,6 +1796,56 @@ function openMatchPreds(matchId) {
   })();
 }
 
+async function openMatchTop5(matchId) {
+  const listEl = document.getElementById('match-preds-list');
+  const headerEl = document.getElementById('match-preds-header');
+  listEl.innerHTML = '<div class="spinner"></div>';
+  headerEl.innerHTML = '';
+  showScreen('match-preds');
+  window.Telegram?.WebApp?.BackButton?.show();
+
+  try {
+    const data = await apiGet(`/api/match-top5/${matchId}`);
+    const match = data.match || {};
+    const items = data.items || [];
+    headerEl.innerHTML = `
+      <div class="pred-teams">
+        <div class="pred-team"><div class="pred-flag">${match.flag_1 || ''}</div><div class="pred-tname">${match.team_1 || ''}</div></div>
+        <div class="pred-vs">VS</div>
+        <div class="pred-team"><div class="pred-flag">${match.flag_2 || ''}</div><div class="pred-tname">${match.team_2 || ''}</div></div>
+      </div>`;
+    if (!items.length) {
+      listEl.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+      return;
+    }
+    const t1 = match.team_1 || '';
+    const t2 = match.team_2 || '';
+    listEl.innerHTML = items.map(p => {
+      const a = p.answers || {};
+      const rows = QUESTION_LABEL_KEYS.map((k, idx) => {
+        const label = getQuestionLabel(idx, t1, t2);
+        const val = esc(a[`q${idx+1}`] ?? '');
+        return `
+          <div style="margin:4px 0;font-size:11px">
+            <div style="color:var(--tg-hint)">${esc(label)}</div>
+            <div style="font-weight:600">${val}</div>
+          </div>`;
+      }).join('');
+      const initial = (p.alias || '?')[0].toUpperCase();
+      return `
+        <div class="lb-row" style="margin:0 12px 12px;align-items:flex-start">
+          <div class="lb-avatar">${initial}</div>
+          <div class="lb-name">
+            <div class="lb-alias">${esc(p.alias || '')}</div>
+            ${rows}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="openMatchTop5(${matchId})" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
 const QUESTION_LABEL_KEYS = ['q_ht_score','q_ht_result','q_ht_goals','q_ft_score','q_ft_result','q_ft_goals','q_tot_score','q_winner','q_tot_goals','q_goals_t1','q_goals_t2','q_first_team','q_scorer1','q_min1','q_scorer2','q_min2','q_penalty'];
 function getQuestionLabel(i, t1, t2) {
   const k = QUESTION_LABEL_KEYS[i];
@@ -1790,6 +1875,9 @@ function openPredictionDetail(matchId) {
           <div class="pred-team"><div class="pred-flag">${data.flag_1 || ''}</div><div class="pred-tname">${t1}</div></div>
           <div class="pred-vs">VS</div>
           <div class="pred-team"><div class="pred-flag">${data.flag_2 || ''}</div><div class="pred-tname">${t2}</div></div>
+        </div>
+        <div style="margin-top:8px">
+          <button class="quick-btn" onclick="openMatchTop5(${matchId})">${t('ui_top5_btn')}</button>
         </div>`;
       if (data.is_finished && data.total_points != null) {
         totalEl.innerHTML = `<div class="progress-info"><span class="progress-label">${t('ui_pts')}</span><span class="progress-count">${data.total_points} / 17</span></div><div class="progress-bar"><div class="progress-fill" style="width:${(data.total_points/17)*100}%"></div></div>`;
@@ -2199,6 +2287,8 @@ function applyStaticTranslations() {
   document.getElementById('nl-profile').textContent = t('ui_nav_profile');
   document.getElementById('hdr-badge').textContent   = t('ui_badge');
   document.getElementById('lbl-upcoming').textContent = t('ui_lbl_upcoming');
+  const lblStarted = document.getElementById('lbl-started');
+  if (lblStarted) lblStarted.textContent = t('ui_started_title');
   document.getElementById('lb-hdr-title').textContent = t('ui_lb_hdr');
   const pTab = document.getElementById('lb-tab-players');
   const cTab = document.getElementById('lb-tab-clans');
