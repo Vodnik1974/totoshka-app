@@ -557,6 +557,18 @@
 const API_BASE = 'https://api.totoshka.com.ua';
 const TG_INIT  = window.Telegram?.WebApp?.initData || '';
 
+// Cache-bust for iOS Home Screen icons (A2HS).
+// iOS может держать старый index.html для иконки, поэтому фиксируем версию в URL.
+const BUILD_V = '2026-03-10-1';
+try {
+  const u = new URL(window.location.href);
+  const v = u.searchParams.get('v');
+  if (v !== BUILD_V) {
+    u.searchParams.set('v', BUILD_V);
+    window.location.replace(u.toString());
+  }
+} catch (_) {}
+
 // ══════════════════════════════════════════════════════════
 // TRANSLATIONS
 // ══════════════════════════════════════════════════════════
