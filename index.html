@@ -488,6 +488,16 @@
     background: rgba(45,189,110,.16);
     border-color: rgba(45,189,110,.6);
   }
+  .lb-tabs-sub {
+    display: flex;
+    gap: 6px;
+    padding: 0 16px 4px;
+  }
+  .compare-rival-card { margin-top: 8px; }
+  .compare-rival-header { font-size: 13px; margin-bottom: 8px; }
+  .compare-rival-matches { font-size: 12px; color: var(--tg-hint); }
+  .compare-match-row { margin: 4px 0; }
+  .sheet-back { cursor: pointer; padding: 8px 0; color: var(--green); font-weight: 600; }
 
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
@@ -579,6 +589,11 @@
     <button class="lb-tab active" id="lb-tab-players" onclick="setLeaderboardMode('players')"></button>
     <button class="lb-tab" id="lb-tab-clans" onclick="setLeaderboardMode('clans')"></button>
   </div>
+  <div class="lb-tabs lb-tabs-sub" id="lb-player-sub-tabs" style="display:none">
+    <button class="lb-tab active" id="lb-sub-overall" onclick="setLeaderboardPlayerType('overall')"></button>
+    <button class="lb-tab" id="lb-sub-playoff" onclick="setLeaderboardPlayerType('playoff')"></button>
+    <button class="lb-tab" id="lb-sub-main" onclick="setLeaderboardPlayerType('main')"></button>
+  </div>
   <div id="lb-content"><div class="spinner"></div></div>
   <div style="height:8px"></div>
 </div>
@@ -667,6 +682,21 @@
   </div>
 </div>
 
+<!-- ══ SHEET: MATCH PARTICIPANTS ═══════════════════════════ -->
+<div class="sheet" id="sheet-participants">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheet-participants-title"></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div id="sheet-participants-list"></div>
+    <div id="sheet-participant-pred" style="display:none">
+      <div class="sheet-back" id="sheet-participants-back" onclick="sheetParticipantsBackToList()"></div>
+      <div id="sheet-participant-pred-content"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════
 // CONFIG — set your API URL here
@@ -749,17 +779,26 @@ const TEXTS = {
     ui_profile_saved:'Профиль сохранён',
     ui_help_title:'Помощь',
     ui_help_btn:'Как играть',
+    ui_chat_btn:'Чат участников',
     ui_lb_tab_players:'Игроки',
     ui_lb_tab_clans:'Кланы',
+    ui_lb_type_overall:'Общий',
+    ui_lb_type_playoff:'Плей-офф',
+    ui_lb_type_main:'Турнир',
     ui_lb_clan_hdr:'РЕЙТИНГ КЛАНОВ',
     ui_lb_clan_members:'участников',
     ui_top5_btn:'Прогнозы топ-5',
+    ui_all_participants:'Все участники',
+    ui_back_to_list:'К списку',
     ui_started_title:'Матчи в процессе',
     ui_user_results_title:'Прогнозы игрока',
     ui_user_active:'Матчи идут',
     ui_user_finished:'Матчи завершены',
     ui_user_no_active:'Нет матчей в процессе',
     ui_user_no_finished:'Пока нет завершённых матчей',
+    ui_compare_title:'Ты vs конкурентом',
+    ui_compare_gap:'Отставание: {gap} очк.',
+    ui_compare_matches:'Последние матчи',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -820,17 +859,26 @@ const TEXTS = {
     ui_profile_saved:'Profile saved',
     ui_help_title:'Help',
     ui_help_btn:'How to play',
+    ui_chat_btn:'Participants\' chat',
     ui_lb_tab_players:'Players',
     ui_lb_tab_clans:'Clans',
+    ui_lb_type_overall:'Overall',
+    ui_lb_type_playoff:'Playoff',
+    ui_lb_type_main:'Tournament',
     ui_lb_clan_hdr:'CLAN RANKINGS',
     ui_lb_clan_members:'members',
     ui_top5_btn:'Top-5 predictions',
+    ui_all_participants:'All participants',
+    ui_back_to_list:'Back to list',
     ui_started_title:'Matches in progress',
     ui_user_results_title:'Player predictions',
     ui_user_active:'Matches in progress',
     ui_user_finished:'Finished matches',
     ui_user_no_active:'No matches in progress',
     ui_user_no_finished:'No finished matches yet',
+    ui_compare_title:'You vs rival',
+    ui_compare_gap:'Gap: {gap} pts',
+    ui_compare_matches:'Last matches',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -891,21 +939,31 @@ const TEXTS = {
     ui_profile_saved:'Профіль збережено',
     ui_help_title:'Допомога',
     ui_help_btn:'Як грати',
+    ui_chat_btn:'Чат учасників',
     ui_lb_tab_players:'Гравці',
     ui_lb_tab_clans:'Клани',
+    ui_lb_type_overall:'Загальний',
+    ui_lb_type_playoff:'Плей-офф',
+    ui_lb_type_main:'Турнір',
     ui_lb_clan_hdr:'РЕЙТИНГ КЛАНІВ',
     ui_lb_clan_members:'учасників',
     ui_top5_btn:'Прогнози топ-5',
+    ui_all_participants:'Усі учасники',
+    ui_back_to_list:'До списку',
     ui_started_title:'Матчі в процесі',
     ui_user_results_title:'Прогнози гравця',
     ui_user_active:'Матчі в процесі',
     ui_user_finished:'Завершені матчі',
     ui_user_no_active:'Немає матчів у процесі',
     ui_user_no_finished:'Ще немає завершених матчів',
+    ui_compare_title:'Ти vs конкурентом',
+    ui_compare_gap:'Відставання: {gap} оч.',
+    ui_compare_matches:'Останні матчі',
   },
 };
 
 let LANG = 'ru';
+let CHAT_URL = '';
 function t(key, vars = {}) {
   const dict = TEXTS[LANG] || TEXTS.ru;
   let str = (key in dict) ? dict[key] : (TEXTS.ru[key] ?? `[${key}]`);
@@ -1878,6 +1936,90 @@ async function openMatchTop5(matchId) {
   }
 }
 
+let _participantsMatchId = null;
+let _participantsListHtml = '';
+
+async function openMatchParticipants(matchId) {
+  closeSheets();
+  const sheet = document.getElementById('sheet-participants');
+  const titleEl = document.getElementById('sheet-participants-title');
+  const listEl = document.getElementById('sheet-participants-list');
+  const predBlock = document.getElementById('sheet-participant-pred');
+  const listBlock = document.getElementById('sheet-participants-list').parentElement;
+  if (!sheet || !listEl) return;
+  titleEl.textContent = t('ui_all_participants');
+  predBlock.style.display = 'none';
+  listEl.style.display = 'block';
+  listEl.innerHTML = '<div class="spinner"></div>';
+  sheet.classList.add('active');
+  try {
+    const data = await apiGet(`/api/match-participants/${matchId}`);
+    const match = data.match || {};
+    const items = data.items || [];
+    titleEl.textContent = `${match.team_1} – ${match.team_2}`;
+    if (!items.length) {
+      listEl.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
+      _participantsMatchId = null;
+      return;
+    }
+    _participantsMatchId = matchId;
+    const t1 = match.team_1 || '';
+    const t2 = match.team_2 || '';
+    _participantsListHtml = items.map(p => `
+      <div class="lb-row" style="cursor:pointer;margin:8px 0" onclick="openMatchParticipantPrediction(${matchId}, ${p.tg_id})">
+        <div class="lb-avatar">${(p.alias || '?')[0].toUpperCase()}</div>
+        <div class="lb-name">
+          <div class="lb-alias">${esc(p.alias || '')}${p.is_me ? ' (' + t('ui_nav_profile') + ')' : ''}</div>
+          <div class="lb-clan">${p.points} ${t('ui_pts')}</div>
+        </div>
+      </div>
+    `).join('');
+    listEl.innerHTML = _participantsListHtml;
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-state">${t('ui_error')}</div>`;
+    _participantsMatchId = null;
+  }
+}
+
+function sheetParticipantsBackToList() {
+  const listEl = document.getElementById('sheet-participants-list');
+  const predBlock = document.getElementById('sheet-participant-pred');
+  if (listEl && predBlock) {
+    predBlock.style.display = 'none';
+    listEl.style.display = 'block';
+    listEl.innerHTML = _participantsListHtml || '';
+  }
+}
+
+async function openMatchParticipantPrediction(matchId, targetId) {
+  const backEl = document.getElementById('sheet-participants-back');
+  const contentEl = document.getElementById('sheet-participant-pred-content');
+  const listEl = document.getElementById('sheet-participants-list');
+  const predBlock = document.getElementById('sheet-participant-pred');
+  if (!contentEl || !predBlock) return;
+  if (backEl) backEl.textContent = '← ' + t('ui_back_to_list');
+  listEl.style.display = 'none';
+  predBlock.style.display = 'block';
+  contentEl.innerHTML = '<div class="spinner"></div>';
+  try {
+    const data = await apiGet(`/api/match-prediction/${matchId}/${targetId}`);
+    const match = data.match || {};
+    const user = data.user || {};
+    const pred = data.prediction || {};
+    const t1 = match.team_1 || '';
+    const t2 = match.team_2 || '';
+    let html = `<div class="profile-hero" style="padding:8px 0"><div class="profile-name">${esc(user.alias || '')}</div></div>`;
+    QUESTION_LABEL_KEYS.forEach((k, idx) => {
+      const label = getQuestionLabel(idx, t1, t2);
+      const val = esc(pred[`q${idx+1}`] ?? '—');
+      html += `<div style="margin:8px 0;font-size:12px"><div style="color:var(--tg-hint)">${esc(label)}</div><div style="font-weight:600">${val}</div></div>`;
+    });
+    contentEl.innerHTML = html;
+  } catch (e) {
+    contentEl.innerHTML = `<div class="empty-state">${t('ui_error')}</div>`;
+  }
+}
+
 async function openUserResults(userId) {
   const container = document.getElementById('ur-content');
   if (!container) return;
@@ -1980,6 +2122,7 @@ function openPredictionDetail(matchId) {
         </div>
         <div style="margin-top:8px">
           <button class="quick-btn" onclick="openMatchTop5(${matchId})">${t('ui_top5_btn')}</button>
+          <button class="quick-btn" onclick="openMatchParticipants(${matchId})">${t('ui_all_participants')}</button>
         </div>`;
       if (data.is_finished && data.total_points != null) {
         totalEl.innerHTML = `<div class="progress-info"><span class="progress-label">${t('ui_pts')}</span><span class="progress-count">${data.total_points} / 17</span></div><div class="progress-bar"><div class="progress-fill" style="width:${(data.total_points/17)*100}%"></div></div>`;
@@ -2017,6 +2160,7 @@ function openPredictionDetail(matchId) {
 // Leaderboard screen (players + clans)
 // ══════════════════════════════════════════════════════════
 let LB_MODE = 'players'; // 'players' | 'clans'
+let LB_PLAYER_TYPE = 'overall'; // 'overall' | 'playoff' | 'main'
 
 function setLeaderboardMode(mode) {
   LB_MODE = mode === 'clans' ? 'clans' : 'players';
@@ -2028,11 +2172,24 @@ function setLeaderboardMode(mode) {
     pBtn.textContent = t('ui_lb_tab_players');
     cBtn.textContent = t('ui_lb_tab_clans');
   }
+  const subTabs = document.getElementById('lb-player-sub-tabs');
+  if (subTabs) subTabs.style.display = LB_MODE === 'players' ? 'flex' : 'none';
+  loadLeaderboard();
+}
+
+function setLeaderboardPlayerType(type) {
+  LB_PLAYER_TYPE = type;
+  const o = document.getElementById('lb-sub-overall');
+  const p = document.getElementById('lb-sub-playoff');
+  const m = document.getElementById('lb-sub-main');
+  if (o) { o.classList.toggle('active', type === 'overall'); o.textContent = t('ui_lb_type_overall'); }
+  if (p) { p.classList.toggle('active', type === 'playoff'); p.textContent = t('ui_lb_type_playoff'); }
+  if (m) { m.classList.toggle('active', type === 'main'); m.textContent = t('ui_lb_type_main'); }
   loadLeaderboard();
 }
 
 async function loadLeaderboardPlayers(container) {
-  const data = await apiGet('/api/leaderboard');
+  const data = await apiGet('/api/leaderboard?board=' + (LB_PLAYER_TYPE || 'overall'));
   if (!data.length) {
     container.innerHTML = `<div class="empty-state">${t('pred_no_matches')}</div>`;
     return;
@@ -2102,6 +2259,18 @@ async function loadLeaderboard() {
   const container = document.getElementById('lb-content');
   if (!container) return;
   container.innerHTML = '<div class="spinner"></div>';
+  const subTabs = document.getElementById('lb-player-sub-tabs');
+  if (subTabs) {
+    subTabs.style.display = LB_MODE === 'players' ? 'flex' : 'none';
+    if (LB_MODE === 'players') {
+      const o = document.getElementById('lb-sub-overall');
+      const p = document.getElementById('lb-sub-playoff');
+      const m = document.getElementById('lb-sub-main');
+      if (o) { o.textContent = t('ui_lb_type_overall'); o.classList.toggle('active', LB_PLAYER_TYPE === 'overall'); }
+      if (p) { p.textContent = t('ui_lb_type_playoff'); p.classList.toggle('active', LB_PLAYER_TYPE === 'playoff'); }
+      if (m) { m.textContent = t('ui_lb_type_main'); m.classList.toggle('active', LB_PLAYER_TYPE === 'main'); }
+    }
+  }
   try {
     if (LB_MODE === 'clans') {
       document.getElementById('lb-hdr-title').textContent = t('ui_lb_clan_hdr');
@@ -2121,10 +2290,11 @@ async function loadLeaderboard() {
 async function loadProfile() {
   const container = document.getElementById('profile-content');
   try {
-    const [p, s, ps] = await Promise.all([
+    const [p, s, ps, cr] = await Promise.all([
       apiGet('/api/profile'),
       apiGet('/api/settings').catch(() => null),
       apiGet('/api/profile-settings').catch(() => null),
+      apiGet('/api/compare-rival').catch(() => null),
     ]);
     const initial = (p.alias || '?')[0].toUpperCase();
     const streakDisplay = p.streak || '—';
@@ -2177,6 +2347,15 @@ async function loadProfile() {
           <div class="rank-sub">${rankSub}</div>
         </div>
       </div>
+      ${cr && cr.has_rival ? `
+      <div class="settings-card compare-rival-card">
+        <div class="settings-title">${t('ui_compare_title')}</div>
+        <div class="compare-rival-header">${esc(cr.rival_alias)} — ${t('ui_compare_gap', { gap: cr.gap })}</div>
+        <div class="compare-rival-matches">${(cr.matches || []).map(m => `
+          <div class="compare-match-row">${m.flag_1} ${m.team_1} – ${m.team_2} ${m.flag_2}: <b>${m.my_score}</b> vs <b>${m.rival_score}</b></div>
+        `).join('')}</div>
+      </div>
+      ` : ''}
       ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="ios-tip">📱 ${t('ui_ios_home_tip')}</div>` : ''}
       <button class="profile-edit-btn" onclick="toggleProfileEdit()">
         ✏️ <span>${t('ui_profile_edit')}</span>
@@ -2184,6 +2363,7 @@ async function loadProfile() {
       <button class="profile-edit-btn" onclick="openHelpScreen()">
         ℹ️ <span>${t('ui_help_btn')}</span>
       </button>
+      ${CHAT_URL ? `<button class="profile-edit-btn" onclick="openChat()">💬 <span>${t('ui_chat_btn')}</span></button>` : ''}
       <div class="settings-section" id="profile-settings">
         <div class="settings-card" id="profile-edit-block" style="display:none">
           <div class="settings-title">${t('ui_profile_edit')}</div>
@@ -2339,6 +2519,10 @@ function openHelpScreen() {
   showScreen('help');
   loadHelp();
 }
+function openChat() {
+  if (CHAT_URL && window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(CHAT_URL);
+  else if (CHAT_URL) window.open(CHAT_URL, '_blank');
+}
 
 async function toggleReminder(key) {
   const idMap = {
@@ -2419,6 +2603,12 @@ function applyStaticTranslations() {
     pTab.textContent = t('ui_lb_tab_players');
     cTab.textContent = t('ui_lb_tab_clans');
   }
+  const so = document.getElementById('lb-sub-overall');
+  const sp = document.getElementById('lb-sub-playoff');
+  const sm = document.getElementById('lb-sub-main');
+  if (so) so.textContent = t('ui_lb_type_overall');
+  if (sp) sp.textContent = t('ui_lb_type_playoff');
+  if (sm) sm.textContent = t('ui_lb_type_main');
   document.getElementById('my-hdr-title').textContent = t('ui_my_title');
   document.getElementById('my-lbl').textContent = t('ui_my_lbl');
   document.getElementById('mp-hdr-title').textContent = t('ui_mp_title');
@@ -2455,6 +2645,7 @@ if (tg) {
   try {
     const r = await apiGet('/api/me');
     if (r && r.lang && TEXTS[r.lang]) LANG = r.lang;
+    if (r && r.chat_url) CHAT_URL = r.chat_url;
   } catch (_) {
     LANG = detectLang();
   }
