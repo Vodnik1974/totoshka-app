@@ -462,6 +462,14 @@
     margin: 4px 0;
   }
 
+  .ur-section-title {
+    padding: 8px 16px 4px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--tg-hint);
+  }
+
   .lb-tabs {
     display: flex;
     gap: 6px;
@@ -572,6 +580,15 @@
     <button class="lb-tab" id="lb-tab-clans" onclick="setLeaderboardMode('clans')"></button>
   </div>
   <div id="lb-content"><div class="spinner"></div></div>
+  <div style="height:8px"></div>
+</div>
+
+<!-- ══ SCREEN: USER RESULTS ═══════════════════════════════ -->
+<div id="screen-user-results" class="screen">
+  <div class="header">
+    <div class="header-title" id="ur-hdr-title"></div>
+  </div>
+  <div id="ur-content"><div class="spinner"></div></div>
   <div style="height:8px"></div>
 </div>
 
@@ -738,6 +755,11 @@ const TEXTS = {
     ui_lb_clan_members:'участников',
     ui_top5_btn:'Прогнозы топ-5',
     ui_started_title:'Матчи в процессе',
+    ui_user_results_title:'Прогнозы игрока',
+    ui_user_active:'Матчи идут',
+    ui_user_finished:'Матчи завершены',
+    ui_user_no_active:'Нет матчей в процессе',
+    ui_user_no_finished:'Пока нет завершённых матчей',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -804,6 +826,11 @@ const TEXTS = {
     ui_lb_clan_members:'members',
     ui_top5_btn:'Top-5 predictions',
     ui_started_title:'Matches in progress',
+    ui_user_results_title:'Player predictions',
+    ui_user_active:'Matches in progress',
+    ui_user_finished:'Finished matches',
+    ui_user_no_active:'No matches in progress',
+    ui_user_no_finished:'No finished matches yet',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -870,6 +897,11 @@ const TEXTS = {
     ui_lb_clan_members:'учасників',
     ui_top5_btn:'Прогнози топ-5',
     ui_started_title:'Матчі в процесі',
+    ui_user_results_title:'Прогнози гравця',
+    ui_user_active:'Матчі в процесі',
+    ui_user_finished:'Завершені матчі',
+    ui_user_no_active:'Немає матчів у процесі',
+    ui_user_no_finished:'Ще немає завершених матчів',
   },
 };
 
@@ -1846,6 +1878,76 @@ async function openMatchTop5(matchId) {
   }
 }
 
+async function openUserResults(userId) {
+  const container = document.getElementById('ur-content');
+  if (!container) return;
+  container.innerHTML = '<div class="spinner"></div>';
+  document.getElementById('ur-hdr-title').textContent = t('ui_user_results_title');
+  showScreen('user-results');
+  window.Telegram?.WebApp?.BackButton?.show();
+
+  try {
+    const data = await apiGet(`/api/user-results/${userId}`);
+    const u = data.user || {};
+    const active = data.active || [];
+    const finished = data.finished || [];
+
+    let html = '';
+    // Заголовок игрока
+    const alias = esc(u.alias || '');
+    const clan = esc(u.clan || '');
+    html += `
+      <div class="profile-hero" style="padding:16px">
+        <div class="profile-name" style="margin-bottom:2px">${alias}</div>
+        <div class="profile-clan">${clan}</div>
+      </div>
+    `;
+
+    // Матчи в процессе
+    html += `<div class="ur-section-title">${t('ui_user_active')}</div>`;
+    if (!active.length) {
+      html += `<div class="empty-state" style="padding:12px 16px">${t('ui_user_no_active')}</div>`;
+    } else {
+      html += '<div class="lb-list">';
+      active.forEach(m => {
+        const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+        html += `
+          <div class="lb-row">
+            <div class="lb-name">
+              <div class="lb-alias">${esc(m.team_1)} vs ${esc(m.team_2)}</div>
+              <div class="lb-clan">${timeStr}</div>
+            </div>
+          </div>`;
+      });
+      html += '</div>';
+    }
+
+    // Завершённые матчи
+    html += `<div class="ur-section-title" style="margin-top:8px">${t('ui_user_finished')}</div>`;
+    if (!finished.length) {
+      html += `<div class="empty-state" style="padding:12px 16px">${t('ui_user_no_finished')}</div>`;
+    } else {
+      html += '<div class="lb-list">';
+      finished.forEach(m => {
+        const timeStr = m.kickoff_time ? m.kickoff_time.slice(11, 16) : '--:--';
+        html += `
+          <div class="lb-row">
+            <div class="lb-name">
+              <div class="lb-alias">${esc(m.team_1)} vs ${esc(m.team_2)}</div>
+              <div class="lb-clan">${timeStr}</div>
+            </div>
+            <div class="lb-score">${m.points_total ?? 0}</div>
+          </div>`;
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="openUserResults(${userId})" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
+  }
+}
+
 const QUESTION_LABEL_KEYS = ['q_ht_score','q_ht_result','q_ht_goals','q_ft_score','q_ft_result','q_ft_goals','q_tot_score','q_winner','q_tot_goals','q_goals_t1','q_goals_t2','q_first_team','q_scorer1','q_min1','q_scorer2','q_min2','q_penalty'];
 function getQuestionLabel(i, t1, t2) {
   const k = QUESTION_LABEL_KEYS[i];
@@ -1960,7 +2062,7 @@ async function loadLeaderboardPlayers(container) {
     const meClass = p.is_me ? ' me' : '';
     const initial = (p.alias || '?')[0].toUpperCase();
     html += `
-      <div class="lb-row${meClass}">
+      <div class="lb-row${meClass}" onclick="openUserResults(${p.tg_id})">
         <div class="lb-rank">${p.rank}</div>
         <div class="lb-avatar">${initial}</div>
         <div class="lb-name">
@@ -2271,13 +2373,14 @@ function showScreen(name) {
   const screenEl = document.getElementById(`screen-${name}`);
   if (screenEl) screenEl.classList.add('active');
   let navEl = document.getElementById(`nav-${name}`);
-  if (!navEl && (name === 'match-preds' || name === 'pred-detail')) navEl = document.getElementById('nav-predict');
+  if (!navEl && (name === 'match-preds' || name === 'pred-detail' || name === 'user-results')) navEl = document.getElementById('nav-predict');
   if (navEl) navEl.classList.add('active');
   const isPredict = name === 'predict';
   const isMatchPreds = name === 'match-preds';
   const isPredDetail = name === 'pred-detail';
-  if (!isPredict && !isMatchPreds && !isPredDetail && name !== 'my') window.Telegram?.WebApp?.BackButton?.hide();
-  if (name === 'my' || isPredDetail) {
+  const isUserResults = name === 'user-results';
+  if (!isPredict && !isMatchPreds && !isPredDetail && !isUserResults && name !== 'my') window.Telegram?.WebApp?.BackButton?.hide();
+  if (name === 'my' || isPredDetail || isUserResults) {
     window.Telegram?.WebApp?.BackButton?.show();
   }
 
