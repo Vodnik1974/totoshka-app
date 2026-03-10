@@ -2110,9 +2110,13 @@ async function loadProfile() {
           <div class="settings-row">
             <div>
               <div>${t('ui_settings_lang')}</div>
-              <div class="settings-label">Telegram задаёт язык автоматически</div>
+              <div class="settings-label">${LANG.toUpperCase()}</div>
             </div>
-            <div style="font-size:13px;font-weight:700">${LANG.toUpperCase()}</div>
+            <select class="settings-select" id="settings-lang">
+              <option value="ru" ${LANG === 'ru' ? 'selected' : ''}>Русский</option>
+              <option value="en" ${LANG === 'en' ? 'selected' : ''}>English</option>
+              <option value="uk" ${LANG === 'uk' ? 'selected' : ''}>Українська</option>
+            </select>
           </div>
           <div class="settings-row">
             <div>
@@ -2144,6 +2148,22 @@ async function loadProfile() {
           </div>
         </div>
       </div>`;
+
+    const langSel = document.getElementById('settings-lang');
+    if (langSel) {
+      langSel.addEventListener('change', async (ev) => {
+        const value = ev.target.value;
+        try {
+          await apiPut('/api/settings', { lang: value });
+          LANG = value;
+          document.documentElement.lang = LANG;
+          applyStaticTranslations();
+          window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+        } catch (e) {
+          alert(t('ui_error'));
+        }
+      });
+    }
 
     const tzSel = document.getElementById('settings-tz');
     if (tzSel) {
