@@ -2441,6 +2441,8 @@ if (tg) {
       showScreen('my');
     else if (document.getElementById('screen-pred-detail')?.classList.contains('active'))
       showScreen('my');
+    else if (document.getElementById('screen-user-results')?.classList.contains('active'))
+      showScreen('leaderboard');
     else if (document.getElementById('screen-my')?.classList.contains('active'))
       showScreen('matches');
   });
