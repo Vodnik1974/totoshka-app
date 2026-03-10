@@ -333,6 +333,69 @@
   .q-jump.done { border-color: rgba(45,189,110,.45); background: rgba(45,189,110,.14); }
   .q-jump.miss { border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.10); }
 
+  .settings-section {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .settings-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .settings-title {
+    font-weight: 800;
+    font-size: 14px;
+  }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    gap: 10px;
+  }
+  .settings-label {
+    color: var(--tg-hint);
+    font-size: 12px;
+  }
+  .settings-select {
+    background: rgba(255,255,255,.06);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.12);
+    color: var(--tg-text);
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.2);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform .16s ease, background .16s ease;
+  }
+  .toggle.on {
+    background: rgba(45,189,110,.6);
+  }
+  .toggle.on .toggle-knob {
+    transform: translateX(20px);
+  }
+
   @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.8)} }
 </style>
 </head>
@@ -541,6 +604,14 @@ const TEXTS = {
     o_win1:'Победа {t1}', o_draw:'Ничья', o_win2:'Победа {t2}', o_nobody:'Никто',
     o_yes:'Да', o_no:'Нет', o_other:'Другой',
     o_no_first_goal:'Не будет первого гола', o_no_second_goal:'Не будет второго гола',
+    ui_settings_title:'Настройки',
+    ui_settings_lang:'Язык бота',
+    ui_settings_tz:'Часовой пояс',
+    ui_settings_reminders:'Напоминания',
+    ui_settings_r2h:'За 2 часа',
+    ui_settings_r1h:'За 1 час',
+    ui_settings_r15:'За 15 минут',
+    ui_settings_muted:'Тихий режим',
   },
   en: {
     pred_saved:'✅ Locked in the vault!', pred_first:'🎉 YOUR FIRST PREDICTION!', pred_no_matches:'No matches yet 😔',
@@ -585,6 +656,14 @@ const TEXTS = {
     o_win1:'{t1} win', o_draw:'Draw', o_win2:'{t2} win', o_nobody:'Nobody',
     o_yes:'Yes', o_no:'No', o_other:'Other',
     o_no_first_goal:'No first goal', o_no_second_goal:'No second goal',
+    ui_settings_title:'Settings',
+    ui_settings_lang:'Bot language',
+    ui_settings_tz:'Time zone',
+    ui_settings_reminders:'Reminders',
+    ui_settings_r2h:'2h before',
+    ui_settings_r1h:'1h before',
+    ui_settings_r15:'15m before',
+    ui_settings_muted:'Quiet mode',
   },
   uk: {
     pred_saved:'✅ Замкнуто в сейфі!', pred_first:'🎉 ПЕРШИЙ ПРОГНОЗ!', pred_no_matches:'Матчів немає 😔',
@@ -629,6 +708,14 @@ const TEXTS = {
     o_win1:'Перемога {t1}', o_draw:'Нічия', o_win2:'Перемога {t2}', o_nobody:'Ніхто',
     o_yes:'Так', o_no:'Ні', o_other:'Інший',
     o_no_first_goal:'Не буде першого гола', o_no_second_goal:'Не буде другого гола',
+    ui_settings_title:'Налаштування',
+    ui_settings_lang:'Мова бота',
+    ui_settings_tz:'Часовий пояс',
+    ui_settings_reminders:'Нагадування',
+    ui_settings_r2h:'За 2 години',
+    ui_settings_r1h:'За 1 годину',
+    ui_settings_r15:'За 15 хвилин',
+    ui_settings_muted:'Тихий режим',
   },
 };
 
@@ -661,6 +748,19 @@ async function apiGet(path) {
 async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
+    headers: { 'X-Init-Data': TG_INIT, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `API ${res.status}`);
+  }
+  return res.json();
+}
+
+async function apiPut(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
     headers: { 'X-Init-Data': TG_INIT, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -1636,12 +1736,33 @@ async function loadLeaderboard() {
 async function loadProfile() {
   const container = document.getElementById('profile-content');
   try {
-    const p = await apiGet('/api/profile');
+    const [p, s] = await Promise.all([
+      apiGet('/api/profile'),
+      apiGet('/api/settings').catch(() => null),
+    ]);
     const initial = (p.alias || '?')[0].toUpperCase();
     const streakDisplay = p.streak || '—';
     const rankSub = p.next_rival_alias
       ? t('ui_rank_sub_tpl', { alias: esc(p.next_rival_alias), gap: p.gap_to_next })
       : '';
+
+    const tz = s?.timezone || '';
+    const rem = s?.reminders || {};
+    const r2 = rem.remind_2h ? 1 : 0;
+    const r1 = rem.remind_1h ? 1 : 0;
+    const r15 = rem.remind_15m ? 1 : 0;
+    const muted = rem.muted ? 1 : 0;
+
+    const tzOptions = [
+      { v: 'Europe/Kyiv', label: 'Europe/Kyiv' },
+      { v: 'Europe/Moscow', label: 'Europe/Moscow' },
+      { v: 'Europe/Berlin', label: 'Europe/Berlin' },
+      { v: 'UTC', label: 'UTC' },
+      { v: 'America/New_York', label: 'America/New_York' },
+    ];
+    const tzHtml = tzOptions.map(o =>
+      `<option value="${o.v}" ${tz === o.v ? 'selected' : ''}>${o.label}</option>`
+    ).join('');
 
     container.innerHTML = `
       <div class="profile-hero">
@@ -1664,7 +1785,60 @@ async function loadProfile() {
           <div class="rank-sub">${rankSub}</div>
         </div>
       </div>
-      ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="ios-tip">📱 ${t('ui_ios_home_tip')}</div>` : ''}`;
+      ${/iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="ios-tip">📱 ${t('ui_ios_home_tip')}</div>` : ''}
+      <div class="settings-section">
+        <div class="settings-card">
+          <div class="settings-title">${t('ui_settings_title')}</div>
+          <div class="settings-row">
+            <div>
+              <div>${t('ui_settings_lang')}</div>
+              <div class="settings-label">Telegram задаёт язык автоматически</div>
+            </div>
+            <div style="font-size:13px;font-weight:700">${LANG.toUpperCase()}</div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div>${t('ui_settings_tz')}</div>
+              <div class="settings-label">${esc(tz || '')}</div>
+            </div>
+            <select class="settings-select" id="settings-tz">
+              ${tzHtml}
+            </select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-title">${t('ui_settings_reminders')}</div>
+          <div class="settings-row">
+            <div>${t('ui_settings_r2h')}</div>
+            <div class="toggle ${r2 ? 'on' : ''}" id="r2" onclick="toggleReminder('remind_2h')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="settings-row">
+            <div>${t('ui_settings_r1h')}</div>
+            <div class="toggle ${r1 ? 'on' : ''}" id="r1" onclick="toggleReminder('remind_1h')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="settings-row">
+            <div>${t('ui_settings_r15')}</div>
+            <div class="toggle ${r15 ? 'on' : ''}" id="r15" onclick="toggleReminder('remind_15m')"><div class="toggle-knob"></div></div>
+          </div>
+          <div class="settings-row">
+            <div>${t('ui_settings_muted')}</div>
+            <div class="toggle ${muted ? 'on' : ''}" id="rm" onclick="toggleReminder('muted')"><div class="toggle-knob"></div></div>
+          </div>
+        </div>
+      </div>`;
+
+    const tzSel = document.getElementById('settings-tz');
+    if (tzSel) {
+      tzSel.addEventListener('change', async (ev) => {
+        const value = ev.target.value;
+        try {
+          await apiPut('/api/settings', { timezone: value });
+          window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+        } catch (e) {
+          alert(t('ui_error'));
+        }
+      });
+    }
   } catch (e) {
     container.innerHTML = `<div class="empty-state">${t('ui_error')}<br><button onclick="loadProfile()" style="margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:var(--green);color:#fff;font-weight:600;cursor:pointer">${t('ui_retry')}</button></div>`;
   }
@@ -1674,6 +1848,28 @@ function esc(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
   return d.innerHTML;
+}
+
+async function toggleReminder(key) {
+  const idMap = {
+    remind_2h: 'r2',
+    remind_1h: 'r1',
+    remind_15m: 'r15',
+    muted: 'rm',
+  };
+  const elId = idMap[key];
+  const el = elId ? document.getElementById(elId) : null;
+  if (!el) return;
+  const on = !el.classList.contains('on');
+  el.classList.toggle('on', on);
+  try {
+    await apiPut('/api/settings', { [key]: on ? 1 : 0 });
+    window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+  } catch (e) {
+    // откат при ошибке
+    el.classList.toggle('on', !on);
+    alert(t('ui_error'));
+  }
 }
 
 // ══════════════════════════════════════════════════════════
